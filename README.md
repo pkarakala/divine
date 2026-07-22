@@ -2,7 +2,7 @@
 
 **The exclusive dating app for the Divine 9.**
 
-Divine is a Raya-style dating platform built exclusively for members of the National Pan-Hellenic Council (NPHC) — the nine historically Black fraternities and sororities known as the Divine 9. Verified membership is required to join.
+Divine is a exlusive dating platform built exclusively for members of the National Pan-Hellenic Council (NPHC) — the nine historically Black fraternities and sororities known as the Divine 9. Verified membership is required to join.
 
 ---
 
