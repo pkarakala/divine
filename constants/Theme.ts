@@ -1,10 +1,12 @@
 export const Colors = {
-  primary: '#1A1A2E',
-  primaryLight: '#2D2D44',
-  accent: '#C9A96E',
-  accentLight: '#E8D5A8',
+  primary: '#0D0D14',
+  primaryLight: '#1A1A2E',
+  accent: '#E4B8D5',
+  accentLight: '#F2D4E8',
+  accentGlow: '#D4A0C8',
+  purple: '#2D1B36',
   white: '#FFFFFF',
-  offWhite: '#F8F8FA',
+  offWhite: '#F8F6FA',
   gray: {
     50: '#FAFAFA',
     100: '#F5F5F5',

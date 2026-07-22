@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { OrgBadge } from '../../components/ui/OrgBadge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { seedDatabase, clearSeedData } from '../../lib/seed';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
 
 export default function ProfileScreen() {
@@ -58,12 +59,12 @@ export default function ProfileScreen() {
         <Card style={styles.settingsCard}>
           <Text style={styles.sectionTitle}>Settings</Text>
 
-          <TouchableOpacity style={styles.settingRow}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/edit-profile' as any)}>
             <Text style={styles.settingLabel}>Edit Profile</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingRow}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/preferences' as any)}>
             <Text style={styles.settingLabel}>Preferences</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
@@ -78,7 +79,7 @@ export default function ProfileScreen() {
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingRow}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/paywall' as any)}>
             <Text style={styles.settingLabel}>Subscription</Text>
             <Text style={styles.settingValue}>
               {user?.subscription_tier === 'free' ? 'Upgrade' : user?.subscription_tier}
@@ -106,6 +107,22 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.settingRow}>
             <Text style={styles.settingLabel}>Privacy Policy</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+        </Card>
+
+        <Card style={styles.settingsCard}>
+          <Text style={styles.sectionTitle}>Dev Tools</Text>
+          <TouchableOpacity style={styles.settingRow} onPress={() => {
+            seedDatabase().then(() => Alert.alert('Done', 'Mock data seeded!'));
+          }}>
+            <Text style={styles.settingLabel}>Seed Mock Data</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.settingRow} onPress={() => {
+            clearSeedData().then(() => Alert.alert('Done', 'Seed data cleared!'));
+          }}>
+            <Text style={[styles.settingLabel, { color: Colors.error }]}>Clear Seed Data</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
         </Card>

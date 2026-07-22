@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
@@ -12,32 +12,48 @@ export default function Welcome() {
       <View style={styles.content}>
         <View style={styles.hero}>
           <Text style={styles.logo}>Divine</Text>
-          <Text style={styles.tagline}>Where Greek Love Begins</Text>
+          <View style={styles.taglineContainer}>
+            <View style={styles.taglineLine} />
+            <Text style={styles.tagline}>Where Divine Connections Begin.</Text>
+            <View style={styles.taglineLine} />
+          </View>
           <Text style={styles.subtitle}>
-            The exclusive dating app for the Divine 9.{'\n'}
-            Verified members only.
+            Exclusive dating for verified{'\n'}Black Divine Nine members.
           </Text>
         </View>
 
-        <View style={styles.orgs}>
-          <Text style={styles.orgsText}>
-            ΑΦΑ • ΑΚΑ • ΚΑΨ • ΩΨΦ • ΔΣΘ • ΦΒΣ • ΖΦΒ • ΣΓΡ • ΙΦΘ
-          </Text>
+        <View style={styles.badges}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeIcon}>✓</Text>
+            <Text style={styles.badgeText}>VERIFIED</Text>
+          </View>
+          <View style={styles.badgeDivider} />
+          <View style={styles.badge}>
+            <Text style={styles.badgeIcon}>♥</Text>
+            <Text style={styles.badgeText}>MEANINGFUL</Text>
+          </View>
+          <View style={styles.badgeDivider} />
+          <View style={styles.badge}>
+            <Text style={styles.badgeIcon}>⟐</Text>
+            <Text style={styles.badgeText}>EXCLUSIVE</Text>
+          </View>
         </View>
 
         <View style={styles.buttons}>
           <Button
-            title="Create Account"
+            title="JOIN THE WAITLIST"
             onPress={() => router.push('/auth/signup')}
-            variant="primary"
-            size="lg"
-          />
-          <Button
-            title="Sign In"
-            onPress={() => router.push('/auth/login')}
             variant="outline"
             size="lg"
-            style={styles.signInButton}
+            style={styles.waitlistButton}
+            textStyle={styles.waitlistButtonText}
+          />
+          <Button
+            title="I have an account"
+            onPress={() => router.push('/auth/login')}
+            variant="ghost"
+            size="md"
+            textStyle={styles.signInText}
           />
         </View>
 
@@ -65,42 +81,80 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    fontSize: FontSize.display + 16,
+    fontSize: 64,
     fontWeight: FontWeight.bold,
-    color: Colors.accent,
-    letterSpacing: -1,
-  },
-  tagline: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.medium,
     color: Colors.white,
+    letterSpacing: -1,
+    fontStyle: 'italic',
+  },
+  taglineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
-  subtitle: {
-    fontSize: FontSize.md,
-    color: Colors.gray[400],
-    textAlign: 'center',
-    marginTop: Spacing.md,
-    lineHeight: 22,
+  taglineLine: {
+    height: 1,
+    width: 20,
+    backgroundColor: Colors.accent,
+    opacity: 0.5,
   },
-  orgs: {
-    alignItems: 'center',
-  },
-  orgsText: {
+  tagline: {
     fontSize: FontSize.sm,
     color: Colors.accent,
-    letterSpacing: 2,
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: FontSize.lg,
+    color: Colors.gray[400],
     textAlign: 'center',
+    marginTop: Spacing.xl,
+    lineHeight: 26,
+  },
+  badges: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  badge: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  badgeIcon: {
+    fontSize: 18,
+    color: Colors.accent,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[400],
+    letterSpacing: 1.5,
+  },
+  badgeDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: Colors.gray[700],
   },
   buttons: {
     gap: Spacing.md,
   },
-  signInButton: {
+  waitlistButton: {
     borderColor: Colors.accent,
+    borderWidth: 1.5,
+  },
+  waitlistButtonText: {
+    color: Colors.accent,
+    letterSpacing: 2,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+  },
+  signInText: {
+    color: Colors.gray[400],
   },
   footer: {
     fontSize: FontSize.xs,
-    color: Colors.gray[500],
+    color: Colors.gray[600],
     textAlign: 'center',
   },
 });

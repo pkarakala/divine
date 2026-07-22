@@ -44,6 +44,10 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="chat/[matchId]" options={{ headerShown: true, headerTitle: '', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="settings/edit-profile" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings/preferences" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings/paywall" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings/report" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );
