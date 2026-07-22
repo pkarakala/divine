@@ -218,16 +218,28 @@ async function seed() {
     email_confirm: true,
   });
 
+  let demoId: string | null = null;
+
   if (demoAuthError) {
     if (demoAuthError.message.includes('already been registered')) {
-      console.log(`  ${DEMO_USER.display_name} (demo): already exists, skipping creation`);
+      // Look up existing user and ensure profile is complete
+      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+      const existing = existingUsers?.users.find(u => u.email === DEMO_USER.email);
+      if (existing) {
+        demoId = existing.id;
+        console.log(`  ${DEMO_USER.display_name} (demo): already exists (${demoId}), ensuring profile is complete`);
+        // Update password to match the constant
+        await supabase.auth.admin.updateUserById(demoId, { password: DEMO_USER.password });
+      }
     } else {
       console.error(`  ${DEMO_USER.display_name} (demo): auth error -`, demoAuthError.message);
     }
   } else {
-    const demoId = demoAuth.user.id;
+    demoId = demoAuth.user.id;
     console.log(`  ${DEMO_USER.display_name} (demo): created (${demoId})`);
+  }
 
+  if (demoId) {
     await supabase.from('users').update({
       is_verified: true,
       verification_status: 'approved',
@@ -251,6 +263,8 @@ async function seed() {
       org_preference: 'any_d9',
     });
 
+    // Upsert photos (delete old ones first to avoid duplicates)
+    await supabase.from('photos').delete().eq('user_id', demoId);
     for (let i = 0; i < DEMO_USER.photos.length; i++) {
       await supabase.from('photos').insert({
         user_id: demoId,
@@ -260,6 +274,8 @@ async function seed() {
       });
     }
 
+    // Upsert prompts (delete old ones first to avoid duplicates)
+    await supabase.from('prompts').delete().eq('user_id', demoId);
     for (let i = 0; i < DEMO_USER.prompts.length; i++) {
       await supabase.from('prompts').insert({
         user_id: demoId,
@@ -269,6 +285,8 @@ async function seed() {
         type: 'text',
       });
     }
+
+    console.log(`  ${DEMO_USER.display_name} (demo): profile, photos, and prompts are set`);
   }
 
   console.log('\n--- Mock Users ---');

@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
+import { getBlockedUserIds } from '../../lib/blockList';
 import { CachedImage } from '../../components/ui/CachedImage';
 import { OrgBadge } from '../../components/ui/OrgBadge';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -26,16 +27,24 @@ export default function Likes() {
   const [standouts, setStandouts] = useState<StandoutProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const blockedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (user?.id) {
-      fetchLikes();
-      fetchStandouts();
+      getBlockedUserIds(user.id).then(ids => {
+        blockedIdsRef.current = new Set(ids);
+        fetchLikes();
+        fetchStandouts();
+      });
     }
   }, [user?.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (user?.id) {
+      const ids = await getBlockedUserIds(user.id);
+      blockedIdsRef.current = new Set(ids);
+    }
     await Promise.all([fetchLikes(), fetchStandouts()]);
     setRefreshing(false);
   }, [user?.id]);
@@ -57,8 +66,12 @@ export default function Likes() {
       return;
     }
 
+    const filteredInteractions = interactions.filter(
+      i => !blockedIdsRef.current.has(i.sender_id)
+    );
+
     const items: LikeItem[] = await Promise.all(
-      interactions.map(async (interaction) => {
+      filteredInteractions.map(async (interaction) => {
         const [profileRes, photoRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('user_id', interaction.sender_id).single(),
           supabase.from('photos').select('*').eq('user_id', interaction.sender_id).eq('is_primary', true).single(),

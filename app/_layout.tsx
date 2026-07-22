@@ -116,6 +116,9 @@ export default function RootLayout() {
         <Stack.Screen name="settings/invite" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settings/boost" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settings/experiments" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings/terms" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings/privacy" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings/community-guidelines" options={{ presentation: 'modal' }} />
         <Stack.Screen name="match-modal" options={{ presentation: 'transparentModal', animation: 'fade' }} />
       </Stack>
       </AppErrorBoundary>

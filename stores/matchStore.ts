@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { isRateLimited } from '../lib/rateLimit';
+import { getBlockedUserIds } from '../lib/blockList';
 import type { Match, Message, Profile, Photo, Prompt } from '../types/database';
 
 export interface MatchWithProfile extends Match {
@@ -44,8 +45,15 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       return;
     }
 
+    const blockedIds = await getBlockedUserIds(userId);
+    const blockedSet = new Set(blockedIds);
+    const filteredData = data.filter(match => {
+      const otherId = match.user_1_id === userId ? match.user_2_id : match.user_1_id;
+      return !blockedSet.has(otherId);
+    });
+
     const matchesWithProfiles: MatchWithProfile[] = await Promise.all(
-      data.map(async (match) => {
+      filteredData.map(async (match) => {
         const otherUserId = match.user_1_id === userId ? match.user_2_id : match.user_1_id;
 
         const [profileRes, photosRes, promptsRes, messagesRes] = await Promise.all([

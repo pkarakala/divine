@@ -18,7 +18,10 @@ export function OrgBadge({ organization, size = 'md', showFullName = false }: Or
     .join('');
 
   return (
-    <View style={[styles.badge, styles[`badge_${size}`], { backgroundColor: org.color + '20', borderColor: org.color }]}>
+    <View
+      style={[styles.badge, styles[`badge_${size}`], { backgroundColor: org.color + '20', borderColor: org.color }]}
+      accessibilityLabel={`${org.name} badge`}
+    >
       <Text style={[styles.text, styles[`text_${size}`], { color: org.color }]}>
         {showFullName ? org.name : abbreviation}
       </Text>

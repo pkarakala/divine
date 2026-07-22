@@ -65,7 +65,7 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile,
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {photos[0] && (
         <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePhoto?.(photos[0].id)}>
-          <View style={styles.primaryPhotoContainer}>
+          <View style={styles.primaryPhotoContainer} accessibilityLabel={`${userData.display_name}, age ${age || 'unknown'}${userData.occupation ? ', ' + userData.occupation : ''}${userData.city ? ', ' + userData.city : ''}`}>
             <CachedImage uri={photos[0].storage_path} style={styles.primaryPhoto} />
             {compatibility !== null && compatibility > 0 && (
               <View style={styles.compatibilityBadge}>
@@ -98,7 +98,7 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile,
       )}
 
       {prompts[0] && (
-        <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePrompt?.(prompts[0].id)}>
+        <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePrompt?.(prompts[0].id)} accessibilityLabel={`Prompt: ${prompts[0].prompt_question} Answer: ${prompts[0].prompt_answer}`}>
           <Card style={styles.promptCard}>
             <Text style={styles.promptQuestion}>{prompts[0].prompt_question}</Text>
             <Text style={styles.promptAnswer}>{prompts[0].prompt_answer}</Text>
@@ -113,7 +113,7 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile,
       )}
 
       {prompts[1] && (
-        <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePrompt?.(prompts[1].id)}>
+        <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePrompt?.(prompts[1].id)} accessibilityLabel={`Prompt: ${prompts[1].prompt_question} Answer: ${prompts[1].prompt_answer}`}>
           <Card style={styles.promptCard}>
             <Text style={styles.promptQuestion}>{prompts[1].prompt_question}</Text>
             <Text style={styles.promptAnswer}>{prompts[1].prompt_answer}</Text>
@@ -128,7 +128,7 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile,
       ))}
 
       {prompts[2] && (
-        <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePrompt?.(prompts[2].id)}>
+        <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePrompt?.(prompts[2].id)} accessibilityLabel={`Prompt: ${prompts[2].prompt_question} Answer: ${prompts[2].prompt_answer}`}>
           <Card style={styles.promptCard}>
             <Text style={styles.promptQuestion}>{prompts[2].prompt_question}</Text>
             <Text style={styles.promptAnswer}>{prompts[2].prompt_answer}</Text>

@@ -29,7 +29,15 @@ export function Button({ title, onPress, variant = 'primary', size = 'md', disab
   ];
 
   return (
-    <TouchableOpacity style={buttonStyle} onPress={onPress} disabled={disabled || loading} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={buttonStyle}
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
+    >
       {loading ? (
         <ActivityIndicator color={variant === 'primary' ? Colors.white : Colors.primary} />
       ) : (

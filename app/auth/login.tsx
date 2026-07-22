@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
@@ -111,6 +111,9 @@ export default function Login() {
                 label="Password"
                 secureTextEntry
               />
+              <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
+                <Text style={styles.forgotPassword}>Forgot password?</Text>
+              </TouchableOpacity>
             </>
           )}
 
@@ -175,6 +178,12 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: FontSize.sm,
     textAlign: 'center',
+  },
+  forgotPassword: {
+    color: Colors.accent,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    textAlign: 'right',
   },
   footer: {
     gap: Spacing.xs,

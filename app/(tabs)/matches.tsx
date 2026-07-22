@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, AccessibilityInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
@@ -19,6 +19,14 @@ export default function Matches() {
   useEffect(() => {
     if (user?.id) fetchMatches(user.id);
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!matches.length) return;
+    const totalUnread = matches.reduce((sum, m) => sum + (m.unread_count || 0), 0);
+    if (totalUnread > 0) {
+      AccessibilityInfo.announceForAccessibility(`${totalUnread} unread ${totalUnread === 1 ? 'message' : 'messages'}`);
+    }
+  }, [matches.length]);
 
   const onRefresh = useCallback(async () => {
     if (!user?.id) return;

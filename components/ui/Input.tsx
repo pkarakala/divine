@@ -45,6 +45,7 @@ export function Input({
         multiline={multiline}
         numberOfLines={numberOfLines}
         style={[styles.input, multiline && styles.multiline, error && styles.inputError]}
+        accessibilityLabel={label || placeholder}
       />
       {error && <Text style={styles.error}>{error}</Text>}
       {maxLength && (

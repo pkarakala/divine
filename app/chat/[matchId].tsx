@@ -335,7 +335,7 @@ export default function Chat() {
     if (item.type === 'image' && item.media_url) {
       return (
         <View>
-          <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage, styles.imageBubble]}>
+          <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage, styles.imageBubble]} accessibilityLabel={`${isMe ? 'You' : matchInfo?.name || 'They'} sent a photo`}>
             <Image
               source={{ uri: item.media_url }}
               style={styles.messageImage}
@@ -357,7 +357,7 @@ export default function Chat() {
 
     return (
       <View>
-        <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
+        <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]} accessibilityLabel={`${isMe ? 'You' : matchInfo?.name || 'They'} said: ${displayContent}`}>
           <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
             {displayContent}
           </Text>
@@ -455,7 +455,7 @@ export default function Chat() {
         )}
 
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.imageButton} onPress={handlePickImage}>
+          <TouchableOpacity style={styles.imageButton} onPress={handlePickImage} accessibilityRole="button" accessibilityLabel="Send photo">
             <Text style={styles.imageButtonText}>+</Text>
           </TouchableOpacity>
           <TextInput
@@ -466,11 +466,15 @@ export default function Chat() {
             style={styles.input}
             multiline
             maxLength={1000}
+            accessibilityLabel="Message input"
           />
           <TouchableOpacity
             style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
             onPress={handleSend}
             disabled={!text.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: !text.trim() }}
           >
             <Text style={styles.sendIcon}>{'↑'}</Text>
           </TouchableOpacity>

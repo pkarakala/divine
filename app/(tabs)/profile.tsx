@@ -185,17 +185,17 @@ export default function ProfileScreen() {
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingRow}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/community-guidelines' as any)}>
             <Text style={styles.settingLabel}>Community Guidelines</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingRow}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/terms' as any)}>
             <Text style={styles.settingLabel}>Terms of Service</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingRow}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/privacy' as any)}>
             <Text style={styles.settingLabel}>Privacy Policy</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>

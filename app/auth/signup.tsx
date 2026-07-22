@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
@@ -114,6 +114,17 @@ export default function Signup() {
             loading={loading}
             size="lg"
           />
+
+          <Text style={styles.consent}>
+            By creating an account, you agree to our{' '}
+            <Text style={styles.consentLink} onPress={() => router.push('/settings/terms' as any)}>
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text style={styles.consentLink} onPress={() => router.push('/settings/privacy' as any)}>
+              Privacy Policy
+            </Text>
+          </Text>
         </View>
 
         <Button
@@ -159,5 +170,15 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: FontSize.sm,
     textAlign: 'center',
+  },
+  consent: {
+    fontSize: FontSize.xs,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  consentLink: {
+    color: Colors.accent,
+    fontWeight: FontWeight.medium,
   },
 });

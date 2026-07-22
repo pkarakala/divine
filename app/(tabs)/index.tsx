@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, Image, Dimensions, AccessibilityInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -37,6 +37,13 @@ export default function Discover() {
   const [rewindAvailable, setRewindAvailable] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [rosesRemaining, setRosesRemaining] = useState(1);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (user?.id) {
@@ -112,6 +119,7 @@ export default function Discover() {
     setPendingInteraction(null);
     if (matched) {
       hapticSuccess();
+      AccessibilityInfo.announceForAccessibility(`It's a match with ${currentProfile.profile.display_name}!`);
       router.push({
         pathname: '/match-modal',
         params: {
@@ -193,6 +201,9 @@ export default function Discover() {
     });
 
   const animatedCardStyle = useAnimatedStyle(() => {
+    if (reduceMotion) {
+      return { transform: [] };
+    }
     const rotation = interpolate(
       translateX.value,
       [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
@@ -247,6 +258,7 @@ export default function Discover() {
     const { matched } = await interact(user.id, currentProfile.profile.user_id, 'rose', 'photo', targetId, 'Sent you a rose');
     if (matched) {
       hapticSuccess();
+      AccessibilityInfo.announceForAccessibility(`It's a match with ${currentProfile.profile.display_name}!`);
       router.push({
         pathname: '/match-modal',
         params: {
@@ -288,9 +300,9 @@ export default function Discover() {
       <View style={styles.header}>
         <Text style={styles.logo}>Divine</Text>
         <View style={styles.headerRight}>
-          <Text style={styles.rosesCount}>{'🌹'} {rosesRemaining}</Text>
-          <Text style={styles.likesRemaining}>{dailyLikesRemaining} likes left</Text>
-          <TouchableOpacity style={styles.boostHeaderBtn} onPress={() => router.push('/settings/boost' as any)}>
+          <Text style={styles.rosesCount} accessibilityLabel={`${rosesRemaining} roses remaining`}>{'🌹'} {rosesRemaining}</Text>
+          <Text style={styles.likesRemaining} accessibilityLabel={`${dailyLikesRemaining} likes remaining today`}>{dailyLikesRemaining} likes left</Text>
+          <TouchableOpacity style={styles.boostHeaderBtn} onPress={() => router.push('/settings/boost' as any)} accessibilityRole="button" accessibilityLabel="Boost your profile">
             <Text style={styles.boostHeaderIcon}>⚡</Text>
           </TouchableOpacity>
         </View>
@@ -340,18 +352,18 @@ export default function Discover() {
 
       <View style={styles.actions}>
         <View style={styles.actionWithLabel}>
-          <TouchableOpacity style={[styles.actionButton, styles.rewindButton, !rewindAvailable && styles.actionDisabled]} onPress={handleRewind} disabled={!rewindAvailable}>
+          <TouchableOpacity style={[styles.actionButton, styles.rewindButton, !rewindAvailable && styles.actionDisabled]} onPress={handleRewind} disabled={!rewindAvailable} accessibilityRole="button" accessibilityLabel="Undo last pass" accessibilityState={{ disabled: !rewindAvailable }}>
             <Text style={[styles.rewindIcon, !rewindAvailable && styles.iconDisabled]}>↺</Text>
           </TouchableOpacity>
           <Text style={styles.premiumLabel}>Divine+</Text>
         </View>
-        <TouchableOpacity style={styles.actionButton} onPress={handlePass}>
+        <TouchableOpacity style={styles.actionButton} onPress={handlePass} accessibilityRole="button" accessibilityLabel="Pass">
           <Text style={styles.passIcon}>✕</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.roseButton]} onPress={handleRose}>
+        <TouchableOpacity style={[styles.actionButton, styles.roseButton]} onPress={handleRose} accessibilityRole="button" accessibilityLabel="Send rose">
           <Text style={styles.roseIcon}>🌹</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.likeButton]} onPress={() => handleLike('photo', currentProfile.photos[0]?.id || '')}>
+        <TouchableOpacity style={[styles.actionButton, styles.likeButton]} onPress={() => handleLike('photo', currentProfile.photos[0]?.id || '')} accessibilityRole="button" accessibilityLabel="Like">
           <Text style={styles.likeIcon}>♥</Text>
         </TouchableOpacity>
       </View>

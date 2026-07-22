@@ -8,6 +8,7 @@ import { prefetchProfileImages } from '../lib/imagePrefetch';
 import { saveDiscoveryPosition, getDiscoveryPosition } from '../lib/statePersistence';
 import { isRateLimited } from '../lib/rateLimit';
 import { getVariant } from '../lib/experiments';
+import { getBlockedUserIds } from '../lib/blockList';
 import type { Profile, Photo, Prompt, InteractionType } from '../types/database';
 
 export interface DiscoveryProfile {
@@ -62,7 +63,8 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       .select('receiver_id')
       .eq('sender_id', userId);
 
-    const excludeIds = [userId, ...(existingInteractions?.map(i => i.receiver_id) || [])];
+    const blockedIds = await getBlockedUserIds(userId);
+    const excludeIds = [userId, ...(existingInteractions?.map(i => i.receiver_id) || []), ...blockedIds];
 
     let query = supabase
       .from('profiles')

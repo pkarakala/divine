@@ -84,6 +84,7 @@ export default function TabLayout() {
         options={{
           title: 'Discover',
           tabBarIcon: ({ focused }) => <TabIcon name="discover" focused={focused} />,
+          tabBarAccessibilityLabel: 'Discover new people',
         }}
       />
       <Tabs.Screen
@@ -91,6 +92,7 @@ export default function TabLayout() {
         options={{
           title: 'Likes',
           tabBarIcon: ({ focused }) => <TabIcon name="likes" focused={focused} badge={unreadLikes > 0} />,
+          tabBarAccessibilityLabel: 'People who liked you',
         }}
       />
       <Tabs.Screen
@@ -98,6 +100,7 @@ export default function TabLayout() {
         options={{
           title: 'Matches',
           tabBarIcon: ({ focused }) => <TabIcon name="matches" focused={focused} badge={unreadMessages} />,
+          tabBarAccessibilityLabel: 'Your matches and conversations',
         }}
       />
       <Tabs.Screen
@@ -105,6 +108,7 @@ export default function TabLayout() {
         options={{
           title: 'Events',
           tabBarIcon: ({ focused }) => <TabIcon name="events" focused={focused} />,
+          tabBarAccessibilityLabel: 'Upcoming events',
         }}
       />
       <Tabs.Screen
@@ -112,6 +116,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ focused }) => <TabIcon name="profile" focused={focused} />,
+          tabBarAccessibilityLabel: 'Your profile and settings',
         }}
       />
     </Tabs>
