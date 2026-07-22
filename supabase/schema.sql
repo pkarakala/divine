@@ -320,5 +320,40 @@ ALTER TABLE public.user_scores ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Scores readable by authenticated" ON public.user_scores FOR SELECT TO authenticated USING (true);
 CREATE POLICY "System updates scores" ON public.user_scores FOR ALL USING (auth.uid() = user_id);
 
+-- Webhook triggers for Edge Functions
+-- These are configured in Supabase Dashboard > Database > Webhooks
+-- pointing to the respective Edge Function URLs:
+--   matches INSERT -> on-new-match
+--   messages INSERT -> on-new-message
+--   interactions INSERT -> on-new-like
+-- Cron triggers (configured in Supabase Dashboard > Extensions > pg_cron):
+--   SELECT cron.schedule('recompute-scores', '0 */6 * * *', $$SELECT net.http_post(...)$$);
+--   SELECT cron.schedule('expire-matches', '0 * * * *', $$SELECT net.http_post(...)$$);
+
 -- Enable Realtime for messages
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+
+-- E2E encryption public keys
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS public_key TEXT;
+
+-- Photo moderation table
+CREATE TABLE public.photo_moderation (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  photo_id UUID NOT NULL REFERENCES public.photos(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'flagged')),
+  confidence FLOAT DEFAULT 0,
+  flags TEXT[] DEFAULT '{}',
+  requires_human_review BOOLEAN DEFAULT FALSE,
+  reviewed_by UUID REFERENCES public.users(id),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(photo_id)
+);
+
+CREATE INDEX idx_moderation_status ON public.photo_moderation(status);
+CREATE INDEX idx_moderation_review ON public.photo_moderation(requires_human_review, reviewed_at);
+
+ALTER TABLE public.photo_moderation ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users see own moderation" ON public.photo_moderation FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "System inserts moderation" ON public.photo_moderation FOR INSERT WITH CHECK (auth.uid() = user_id);

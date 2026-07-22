@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/Input';
 import { OrgBadge } from '../../components/ui/OrgBadge';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
+import { moderatePhoto } from '../../lib/photoModeration';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
 import { PROMPT_QUESTIONS } from '../../types/database';
 import type { Photo, Prompt } from '../../types/database';
@@ -61,12 +62,22 @@ export default function EditProfile() {
       const blob = await response.blob();
       await supabase.storage.from('photos').upload(fileName, blob, { contentType: 'image/jpeg' });
       const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(fileName);
-      await supabase.from('photos').insert({
+      const { data: photoRecord } = await supabase.from('photos').insert({
         user_id: user.id,
         storage_path: publicUrl,
         order_index: photos.length,
         is_primary: photos.length === 0,
-      });
+      }).select().single();
+
+      if (photoRecord) {
+        const moderation = await moderatePhoto(user.id, photoRecord.id, publicUrl);
+        if (moderation.status === 'rejected') {
+          Alert.alert('Photo removed', "This photo doesn't meet our community guidelines.");
+        } else if (moderation.status === 'flagged') {
+          Alert.alert('Under review', 'Your photo is being reviewed and will be visible shortly.');
+        }
+      }
+
       loadProfileData();
     }
   };

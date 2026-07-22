@@ -203,6 +203,10 @@ export default function ProfileScreen() {
 
         <Card style={styles.settingsCard}>
           <Text style={styles.sectionTitle}>Dev Tools</Text>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/experiments' as any)}>
+            <Text style={styles.settingLabel}>Experiments</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.settingRow} onPress={() => {
             seedDatabase().then(() => Alert.alert('Done', 'Mock data seeded!'));
           }}>

@@ -4,6 +4,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/Theme';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
+import { subscribeToNewLikes, subscribeToMatchMessages } from '../../lib/realtimeSubscriptions';
 
 function TabIcon({ name, focused, badge }: { name: string; focused: boolean; badge?: number | boolean }) {
   const icons: Record<string, string> = {
@@ -53,7 +54,19 @@ export default function TabLayout() {
     };
     fetchCounts();
     const interval = setInterval(fetchCounts, 30000);
-    return () => clearInterval(interval);
+
+    const unsubLikes = subscribeToNewLikes(user.id, () => {
+      setUnreadLikes(prev => prev + 1);
+    });
+    const unsubMessages = subscribeToMatchMessages(user.id, () => {
+      setUnreadMessages(prev => prev + 1);
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubLikes();
+      unsubMessages();
+    };
   }, [user]);
 
   return (

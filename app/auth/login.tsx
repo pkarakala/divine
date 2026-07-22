@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../stores/authStore';
 import { Colors, FontSize, FontWeight, Spacing } from '../../constants/Theme';
+import { DEMO_CREDENTIALS } from '../../constants/demo';
 
 export default function Login() {
   const router = useRouter();
@@ -42,6 +43,19 @@ export default function Login() {
     setLoading(true);
     setError('');
     const { error: authError } = await signInWithEmail(email, password);
+    setLoading(false);
+    if (authError) {
+      setError(authError);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    setError('');
+    setMode('email');
+    setEmail(DEMO_CREDENTIALS.email);
+    setPassword(DEMO_CREDENTIALS.password);
+    const { error: authError } = await signInWithEmail(DEMO_CREDENTIALS.email, DEMO_CREDENTIALS.password);
     setLoading(false);
     if (authError) {
       setError(authError);
@@ -110,11 +124,19 @@ export default function Login() {
           />
         </View>
 
-        <Button
-          title="Don't have an account? Sign Up"
-          onPress={() => router.push('/auth/signup')}
-          variant="ghost"
-        />
+        <View style={styles.footer}>
+          <Button
+            title="Try Demo Account"
+            onPress={handleDemoLogin}
+            variant="ghost"
+            loading={loading}
+          />
+          <Button
+            title="Don't have an account? Sign Up"
+            onPress={() => router.push('/auth/signup')}
+            variant="ghost"
+          />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -153,5 +175,9 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: FontSize.sm,
     textAlign: 'center',
+  },
+  footer: {
+    gap: Spacing.xs,
+    alignItems: 'center',
   },
 });

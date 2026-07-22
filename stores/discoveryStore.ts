@@ -7,6 +7,7 @@ import { getUserPeakHours, isUserLikelyActive } from '../lib/smartTiming';
 import { prefetchProfileImages } from '../lib/imagePrefetch';
 import { saveDiscoveryPosition, getDiscoveryPosition } from '../lib/statePersistence';
 import { isRateLimited } from '../lib/rateLimit';
+import { getVariant } from '../lib/experiments';
 import type { Profile, Photo, Prompt, InteractionType } from '../types/database';
 
 export interface DiscoveryProfile {
@@ -41,6 +42,9 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
 
   fetchProfiles: async (userId) => {
     set({ isLoading: true });
+
+    const likeLimitVariant = await getVariant('daily_likes_limit');
+    const limit = likeLimitVariant === '5_likes' ? 5 : likeLimitVariant === '12_likes' ? 12 : 8;
 
     const { data: myProfile } = await supabase
       .from('profiles')
@@ -169,7 +173,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     const urls = rankedProfiles.slice(0, 3).flatMap(p => p.photos.map(ph => ph.storage_path));
     prefetchProfileImages(urls);
 
-    set({ profiles: rankedProfiles, currentIndex: Math.max(startIndex, 0), isLoading: false });
+    set({ profiles: rankedProfiles, currentIndex: Math.max(startIndex, 0), dailyLikesRemaining: limit, isLoading: false });
   },
 
   interact: async (senderId, receiverId, type, targetType, targetId, comment) => {

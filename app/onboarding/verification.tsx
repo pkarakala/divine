@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Button } from '../../components/ui/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
+import { moderatePhoto } from '../../lib/photoModeration';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
 import type { Organization } from '../../types/database';
 
@@ -60,7 +61,6 @@ export default function Verification() {
 
       if (profileError) throw profileError;
 
-      // Upload photos
       const photoUris = JSON.parse((params.photoUris as string) || '[]') as string[];
       for (let i = 0; i < photoUris.length; i++) {
         const uri = photoUris[i];
@@ -69,12 +69,16 @@ export default function Verification() {
         const blob = await response.blob();
         await supabase.storage.from('photos').upload(fileName, blob, { contentType: 'image/jpeg' });
         const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(fileName);
-        await supabase.from('photos').insert({
+        const { data: photoRecord } = await supabase.from('photos').insert({
           user_id: userId,
           storage_path: publicUrl,
           order_index: i,
           is_primary: i === 0,
-        });
+        }).select().single();
+
+        if (photoRecord) {
+          await moderatePhoto(userId, photoRecord.id, publicUrl);
+        }
       }
 
       // Save prompts

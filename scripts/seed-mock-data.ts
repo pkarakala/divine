@@ -14,6 +14,34 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   realtime: { transport: ws },
 });
 
+const DEMO_USER = {
+  email: 'demo@divine-test.com',
+  password: 'DivineDemo2026!',
+  display_name: 'Alex',
+  date_of_birth: '1995-07-20',
+  city: 'Atlanta',
+  state: 'GA',
+  occupation: 'Entrepreneur',
+  employer: 'Self',
+  organization: 'alpha_phi_alpha',
+  chapter_name: 'Epsilon Theta Chapter',
+  line_name: 'The Visionary',
+  line_number: 1,
+  initiation_year: 2015,
+  gender: 'male',
+  looking_for: 'female',
+  photos: [
+    'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=600',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600',
+    'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=600',
+  ],
+  prompts: [
+    { question: "I knew I found my org when...", answer: "I saw brothers turning vision into action — building businesses, mentoring youth, and lifting each other up without asking for anything in return." },
+    { question: "A perfect date for me looks like...", answer: "Something spontaneous. A popup art gallery, street food, and real conversation. I want to learn how you see the world." },
+    { question: "The way to my heart is...", answer: "Be unapologetically yourself. I'm drawn to passion, authenticity, and someone who can make me laugh until my face hurts." },
+  ],
+};
+
 const MOCK_USERS = [
   {
     email: 'maya@divine-test.com',
@@ -182,6 +210,68 @@ const MOCK_USERS = [
 async function seed() {
   console.log('Seeding mock data...\n');
 
+  // Seed the demo user first
+  console.log('--- Demo User ---');
+  const { data: demoAuth, error: demoAuthError } = await supabase.auth.admin.createUser({
+    email: DEMO_USER.email,
+    password: DEMO_USER.password,
+    email_confirm: true,
+  });
+
+  if (demoAuthError) {
+    if (demoAuthError.message.includes('already been registered')) {
+      console.log(`  ${DEMO_USER.display_name} (demo): already exists, skipping creation`);
+    } else {
+      console.error(`  ${DEMO_USER.display_name} (demo): auth error -`, demoAuthError.message);
+    }
+  } else {
+    const demoId = demoAuth.user.id;
+    console.log(`  ${DEMO_USER.display_name} (demo): created (${demoId})`);
+
+    await supabase.from('users').update({
+      is_verified: true,
+      verification_status: 'approved',
+      gender: DEMO_USER.gender,
+      looking_for: DEMO_USER.looking_for,
+    }).eq('id', demoId);
+
+    await supabase.from('profiles').upsert({
+      user_id: demoId,
+      display_name: DEMO_USER.display_name,
+      date_of_birth: DEMO_USER.date_of_birth,
+      city: DEMO_USER.city,
+      state: DEMO_USER.state,
+      occupation: DEMO_USER.occupation,
+      employer: DEMO_USER.employer,
+      organization: DEMO_USER.organization,
+      chapter_name: DEMO_USER.chapter_name,
+      line_name: DEMO_USER.line_name,
+      line_number: DEMO_USER.line_number,
+      initiation_year: DEMO_USER.initiation_year,
+      org_preference: 'any_d9',
+    });
+
+    for (let i = 0; i < DEMO_USER.photos.length; i++) {
+      await supabase.from('photos').insert({
+        user_id: demoId,
+        storage_path: DEMO_USER.photos[i],
+        order_index: i,
+        is_primary: i === 0,
+      });
+    }
+
+    for (let i = 0; i < DEMO_USER.prompts.length; i++) {
+      await supabase.from('prompts').insert({
+        user_id: demoId,
+        prompt_question: DEMO_USER.prompts[i].question,
+        prompt_answer: DEMO_USER.prompts[i].answer,
+        order_index: i,
+        type: 'text',
+      });
+    }
+  }
+
+  console.log('\n--- Mock Users ---');
   for (const mockUser of MOCK_USERS) {
     // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
