@@ -1,11 +1,20 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { rankProfiles } from '../lib/scoring';
+import { computeAndSaveUserScores } from '../lib/computeUserScores';
+import { applyActivityMultipliers } from '../lib/activityFilter';
+import { getUserPeakHours, isUserLikelyActive } from '../lib/smartTiming';
+import { prefetchProfileImages } from '../lib/imagePrefetch';
+import { saveDiscoveryPosition, getDiscoveryPosition } from '../lib/statePersistence';
+import { isRateLimited } from '../lib/rateLimit';
 import type { Profile, Photo, Prompt, InteractionType } from '../types/database';
 
 export interface DiscoveryProfile {
   profile: Profile;
   photos: Photo[];
   prompts: Prompt[];
+  last_active_at?: string;
+  compatibilityScore?: number;
 }
 
 interface DiscoveryState {
@@ -17,6 +26,8 @@ interface DiscoveryState {
   fetchProfiles: (userId: string) => Promise<void>;
   interact: (senderId: string, receiverId: string, type: InteractionType, targetType: 'photo' | 'prompt', targetId: string, comment?: string) => Promise<{ matched: boolean }>;
   nextProfile: () => void;
+  previousProfile: () => void;
+  deleteLastPass: (senderId: string, receiverId: string) => Promise<void>;
   resetDailyLikes: () => void;
 }
 
@@ -52,19 +63,8 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     let query = supabase
       .from('profiles')
       .select('*')
-      .eq('is_verified', true)
       .not('user_id', 'in', `(${excludeIds.join(',')})`)
       .limit(20);
-
-    const { data: user } = await supabase
-      .from('users')
-      .select('looking_for')
-      .eq('id', userId)
-      .single();
-
-    if (user?.looking_for && user.looking_for !== 'everyone') {
-      query = query.eq('gender', user.looking_for);
-    }
 
     const { data: profiles } = await query;
 
@@ -72,6 +72,17 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       set({ profiles: [], isLoading: false });
       return;
     }
+
+    const userIds = profiles.map(p => p.user_id);
+    const { data: usersData } = await supabase
+      .from('users')
+      .select('id, last_active_at')
+      .in('id', userIds);
+
+    const activityMap = new Map<string, string>();
+    usersData?.forEach(u => {
+      if (u.last_active_at) activityMap.set(u.id, u.last_active_at);
+    });
 
     const discoveryProfiles: DiscoveryProfile[] = await Promise.all(
       profiles.map(async (profile) => {
@@ -83,15 +94,87 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
           profile,
           photos: photosRes.data || [],
           prompts: promptsRes.data || [],
+          last_active_at: activityMap.get(profile.user_id),
         };
       })
     );
 
-    set({ profiles: discoveryProfiles, currentIndex: 0, isLoading: false });
+    await computeAndSaveUserScores(userId);
+
+    const ranked = await rankProfiles(userId, myProfile, userIds);
+
+    const baseScored = ranked.map(r => ({
+      userId: r.userId,
+      score: r.score,
+      lastActiveAt: activityMap.get(r.userId) || null,
+    }));
+
+    const activityScored = applyActivityMultipliers(baseScored);
+
+    const peakHoursMap = new Map<string, number[]>();
+    await Promise.all(
+      activityScored.map(async (entry) => {
+        const peaks = await getUserPeakHours(entry.userId);
+        peakHoursMap.set(entry.userId, peaks);
+      })
+    );
+
+    const finalScored = activityScored.map(entry => {
+      const peaks = peakHoursMap.get(entry.userId) || [19, 20, 21];
+      const timingBoost = isUserLikelyActive(peaks) ? 5 : 0;
+      return { ...entry, score: entry.score + timingBoost };
+    });
+
+    finalScored.sort((a, b) => b.score - a.score);
+
+    const highlyActiveIds = new Set(
+      finalScored
+        .filter(e => e.activityTier === 'highly_active')
+        .map(e => e.userId)
+    );
+
+    const nonHighlyActive = finalScored.filter(e => !highlyActiveIds.has(e.userId));
+    const highlyActive = finalScored.filter(e => highlyActiveIds.has(e.userId));
+
+    const merged: typeof finalScored = [];
+    let haInserted = 0;
+    let naIdx = 0;
+
+    for (let i = 0; merged.length < finalScored.length; i++) {
+      if (haInserted < highlyActive.length && i >= 1 && i <= 5) {
+        merged.push(highlyActive[haInserted]);
+        haInserted++;
+      } else if (naIdx < nonHighlyActive.length) {
+        merged.push(nonHighlyActive[naIdx]);
+        naIdx++;
+      } else if (haInserted < highlyActive.length) {
+        merged.push(highlyActive[haInserted]);
+        haInserted++;
+      }
+    }
+
+    const scoreMap = new Map(merged.map(e => [e.userId, e.score]));
+    const profileMap = new Map(discoveryProfiles.map(dp => [dp.profile.user_id, dp]));
+    const rankedProfiles = merged
+      .map(e => profileMap.get(e.userId))
+      .filter((dp): dp is DiscoveryProfile => !!dp)
+      .map(dp => ({
+        ...dp,
+        compatibilityScore: scoreMap.get(dp.profile.user_id),
+      }));
+
+    const saved = await getDiscoveryPosition();
+    const startIndex = Math.min(saved, rankedProfiles.length - 1);
+
+    const urls = rankedProfiles.slice(0, 3).flatMap(p => p.photos.map(ph => ph.storage_path));
+    prefetchProfileImages(urls);
+
+    set({ profiles: rankedProfiles, currentIndex: Math.max(startIndex, 0), isLoading: false });
   },
 
   interact: async (senderId, receiverId, type, targetType, targetId, comment) => {
     if (type === 'like' || type === 'rose') {
+      if (isRateLimited('like', 30)) return { matched: false };
       const remaining = get().dailyLikesRemaining;
       if (remaining <= 0) {
         return { matched: false };
@@ -136,7 +219,27 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   },
 
   nextProfile: () => {
-    set({ currentIndex: get().currentIndex + 1 });
+    const next = get().currentIndex + 1;
+    set({ currentIndex: next });
+    saveDiscoveryPosition(next);
+  },
+
+  previousProfile: () => {
+    const current = get().currentIndex;
+    if (current > 0) {
+      const prev = current - 1;
+      set({ currentIndex: prev });
+      saveDiscoveryPosition(prev);
+    }
+  },
+
+  deleteLastPass: async (senderId, receiverId) => {
+    await supabase
+      .from('interactions')
+      .delete()
+      .eq('sender_id', senderId)
+      .eq('receiver_id', receiverId)
+      .eq('type', 'pass');
   },
 
   resetDailyLikes: () => {

@@ -34,6 +34,16 @@ export default function Verification() {
 
       const userId = session.user.id;
 
+      // Save gender and looking_for to users table
+      const gender = params.gender as string || null;
+      const lookingFor = params.lookingFor as string || null;
+      if (gender || lookingFor) {
+        const userUpdate: Record<string, string | null> = {};
+        if (gender) userUpdate.gender = gender;
+        if (lookingFor) userUpdate.looking_for = lookingFor;
+        await supabase.from('users').update(userUpdate).eq('id', userId);
+      }
+
       // Create/update profile
       const { error: profileError } = await supabase.from('profiles').upsert({
         user_id: userId,

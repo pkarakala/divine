@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { isRateLimited } from '../lib/rateLimit';
 import type { Match, Message, Profile, Photo, Prompt } from '../types/database';
 
 export interface MatchWithProfile extends Match {
@@ -19,7 +20,7 @@ interface MatchState {
 
   fetchMatches: (userId: string) => Promise<void>;
   fetchMessages: (matchId: string) => Promise<void>;
-  sendMessage: (matchId: string, senderId: string, content: string, type?: 'text' | 'image') => Promise<void>;
+  sendMessage: (matchId: string, senderId: string, content: string, type?: 'text' | 'image', mediaUrl?: string) => Promise<void>;
   unmatch: (matchId: string) => Promise<void>;
   subscribeToMessages: (matchId: string) => () => void;
 }
@@ -87,10 +88,14 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     set({ currentChat: data || [] });
   },
 
-  sendMessage: async (matchId, senderId, content, type = 'text') => {
+  sendMessage: async (matchId, senderId, content, type = 'text', mediaUrl) => {
+    if (isRateLimited('message', 20)) return;
+    const insertData: any = { match_id: matchId, sender_id: senderId, content, type };
+    if (mediaUrl) insertData.media_url = mediaUrl;
+
     const { data } = await supabase
       .from('messages')
-      .insert({ match_id: matchId, sender_id: senderId, content, type })
+      .insert(insertData)
       .select()
       .single();
 

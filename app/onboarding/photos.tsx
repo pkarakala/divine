@@ -81,6 +81,17 @@ export default function Photos() {
           disabled={photos.length < 2}
           size="lg"
         />
+        {photos.length < 2 && (
+          <Button
+            title="Skip for now (demo)"
+            onPress={() => router.push({
+              pathname: '/onboarding/prompts',
+              params: { ...params, photoUris: JSON.stringify([]) },
+            })}
+            variant="ghost"
+            size="sm"
+          />
+        )}
       </View>
     </SafeAreaView>
   );

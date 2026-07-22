@@ -1,8 +1,11 @@
-import { View, Text, Image, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { DiscoveryProfile } from '../stores/discoveryStore';
+import { CachedImage } from './ui/CachedImage';
 import { OrgBadge } from './ui/OrgBadge';
 import { Card } from './ui/Card';
 import { Colors, BorderRadius, FontSize, FontWeight, Spacing } from '../constants/Theme';
+import { calculateDistance } from '../lib/location';
+import type { Profile } from '../types/database';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - Spacing.lg * 2;
@@ -11,12 +14,51 @@ interface ProfileCardProps {
   profile: DiscoveryProfile;
   onLikePhoto?: (photoId: string) => void;
   onLikePrompt?: (promptId: string) => void;
+  viewerProfile?: Profile | null;
+  viewerLocation?: { latitude: number; longitude: number } | null;
 }
 
-export function ProfileCard({ profile, onLikePhoto, onLikePrompt }: ProfileCardProps) {
-  const { profile: userData, photos, prompts } = profile;
+function getActivityStatus(lastActiveAt?: string): { label: string; showDot: boolean } | null {
+  if (!lastActiveAt) return null;
+  const diff = Date.now() - new Date(lastActiveAt).getTime();
+  const hours = diff / (1000 * 60 * 60);
+  if (hours <= 1) return { label: 'Active now', showDot: true };
+  if (hours <= 24) return { label: 'Active today', showDot: false };
+  if (hours <= 168) return { label: 'Active this week', showDot: false };
+  return null;
+}
+
+function calculateCompatibility(viewer: Profile, target: Profile, photos: any[], prompts: any[]): number {
+  let score = 0;
+  if (viewer.city && target.city && viewer.city.toLowerCase() === target.city.toLowerCase()) score += 20;
+  if (viewer.organization && target.organization && viewer.organization === target.organization) score += 30;
+  if (viewer.date_of_birth && target.date_of_birth) {
+    const viewerAge = Math.floor((Date.now() - new Date(viewer.date_of_birth).getTime()) / 31557600000);
+    const targetAge = Math.floor((Date.now() - new Date(target.date_of_birth).getTime()) / 31557600000);
+    if (Math.abs(viewerAge - targetAge) <= 3) score += 15;
+  }
+  if (viewer.org_preference === 'same_org' && target.organization === viewer.organization) score += 15;
+  else if (viewer.org_preference === 'any_d9' && target.organization) score += 15;
+  else if (viewer.org_preference === 'no_preference') score += 15;
+  if (prompts.length > 0) score += 10;
+  if (photos.length > 1) score += 10;
+  return Math.min(score, 99);
+}
+
+export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile, viewerLocation }: ProfileCardProps) {
+  const { profile: userData, photos, prompts, last_active_at } = profile;
   const age = userData.date_of_birth
     ? Math.floor((Date.now() - new Date(userData.date_of_birth).getTime()) / 31557600000)
+    : null;
+
+  const activity = getActivityStatus(last_active_at);
+
+  const distance = viewerLocation && userData.latitude && userData.longitude
+    ? calculateDistance(viewerLocation.latitude, viewerLocation.longitude, userData.latitude, userData.longitude)
+    : null;
+
+  const compatibility = viewerProfile
+    ? calculateCompatibility(viewerProfile, userData, photos, prompts)
     : null;
 
   return (
@@ -24,7 +66,12 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt }: ProfileCardP
       {photos[0] && (
         <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePhoto?.(photos[0].id)}>
           <View style={styles.primaryPhotoContainer}>
-            <Image source={{ uri: photos[0].storage_path }} style={styles.primaryPhoto} />
+            <CachedImage uri={photos[0].storage_path} style={styles.primaryPhoto} />
+            {compatibility !== null && compatibility > 0 && (
+              <View style={styles.compatibilityBadge}>
+                <Text style={styles.compatibilityText}>{compatibility}% Compatible</Text>
+              </View>
+            )}
             <View style={styles.photoOverlay}>
               <View style={styles.nameRow}>
                 <Text style={styles.name}>{userData.display_name}, {age}</Text>
@@ -35,6 +82,15 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt }: ProfileCardP
               )}
               {userData.city && (
                 <Text style={styles.location}>{userData.city}, {userData.state}</Text>
+              )}
+              {distance !== null && (
+                <Text style={styles.distance}>{distance} {distance === 1 ? 'mile' : 'miles'} away</Text>
+              )}
+              {activity && (
+                <View style={styles.activityRow}>
+                  {activity.showDot && <View style={styles.activeDot} />}
+                  <Text style={styles.activityText}>{activity.label}</Text>
+                </View>
               )}
             </View>
           </View>
@@ -52,7 +108,7 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt }: ProfileCardP
 
       {photos[1] && (
         <TouchableOpacity activeOpacity={0.9} onPress={() => onLikePhoto?.(photos[1].id)}>
-          <Image source={{ uri: photos[1].storage_path }} style={styles.secondaryPhoto} />
+          <CachedImage uri={photos[1].storage_path} style={styles.secondaryPhoto} />
         </TouchableOpacity>
       )}
 
@@ -67,7 +123,7 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt }: ProfileCardP
 
       {photos.slice(2).map((photo, index) => (
         <TouchableOpacity key={photo.id} activeOpacity={0.9} onPress={() => onLikePhoto?.(photo.id)}>
-          <Image source={{ uri: photo.storage_path }} style={styles.secondaryPhoto} />
+          <CachedImage uri={photo.storage_path} style={styles.secondaryPhoto} />
         </TouchableOpacity>
       ))}
 
@@ -128,6 +184,20 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  compatibilityBadge: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: Spacing.xs,
+  },
+  compatibilityText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.accent,
+  },
   photoOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -158,6 +228,29 @@ const styles = StyleSheet.create({
     color: Colors.white,
     marginTop: 2,
     opacity: 0.8,
+  },
+  distance: {
+    fontSize: FontSize.sm,
+    color: Colors.white,
+    marginTop: 2,
+    opacity: 0.8,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+    gap: 4,
+  },
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.success,
+  },
+  activityText: {
+    fontSize: FontSize.xs,
+    color: Colors.success,
+    fontWeight: FontWeight.medium,
   },
   promptCard: {
     marginBottom: Spacing.md,

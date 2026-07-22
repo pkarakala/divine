@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity } from 'react-native';
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/ui/Card';
 import { OrgBadge } from '../../components/ui/OrgBadge';
@@ -9,12 +10,23 @@ import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../const
 import type { Event } from '../../types/database';
 
 export default function Events() {
+  const { user } = useAuthStore();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [rsvpedIds, setRsvpedIds] = useState<Set<string>>(new Set());
+  const [attendeeCounts, setAttendeeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  useEffect(() => {
+    if (user?.id && events.length > 0) {
+      fetchRsvps();
+      fetchAttendeeCounts();
+    }
+  }, [user?.id, events]);
 
   const fetchEvents = async () => {
     const { data } = await supabase
@@ -26,6 +38,55 @@ export default function Events() {
     setEvents(data || []);
     setIsLoading(false);
   };
+
+  const fetchRsvps = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('event_rsvps')
+      .select('event_id')
+      .eq('user_id', user.id);
+
+    if (data) {
+      setRsvpedIds(new Set(data.map((r) => r.event_id)));
+    }
+  };
+
+  const fetchAttendeeCounts = async () => {
+    const eventIds = events.map((e) => e.id);
+    const { data } = await supabase
+      .from('event_rsvps')
+      .select('event_id')
+      .in('event_id', eventIds);
+
+    if (data) {
+      const counts: Record<string, number> = {};
+      data.forEach((r) => {
+        counts[r.event_id] = (counts[r.event_id] || 0) + 1;
+      });
+      setAttendeeCounts(counts);
+    }
+  };
+
+  const handleRsvp = async (eventId: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('event_rsvps')
+      .insert({ event_id: eventId, user_id: user.id });
+
+    if (!error) {
+      setRsvpedIds((prev) => new Set([...prev, eventId]));
+      setAttendeeCounts((prev) => ({
+        ...prev,
+        [eventId]: (prev[eventId] || 0) + 1,
+      }));
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchEvents();
+    setRefreshing(false);
+  }, []);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -66,9 +127,18 @@ export default function Events() {
           {item.capacity && (
             <Text style={styles.capacity}>{item.capacity} spots</Text>
           )}
+          {attendeeCounts[item.id] > 0 && (
+            <Text style={styles.attendees}>{attendeeCounts[item.id]} attending</Text>
+          )}
         </View>
 
-        <Button title="RSVP" onPress={() => {}} variant="secondary" size="sm" />
+        <Button
+          title={rsvpedIds.has(item.id) ? "RSVP'd ✓" : "RSVP"}
+          onPress={() => handleRsvp(item.id)}
+          variant="secondary"
+          size="sm"
+          disabled={rsvpedIds.has(item.id)}
+        />
       </View>
     </Card>
   );
@@ -93,6 +163,9 @@ export default function Events() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />
+          }
         />
       )}
     </SafeAreaView>
@@ -178,6 +251,11 @@ const styles = StyleSheet.create({
   capacity: {
     fontSize: FontSize.sm,
     color: Colors.text.light,
+  },
+  attendees: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.accent,
   },
   empty: {
     flex: 1,

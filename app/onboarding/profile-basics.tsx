@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/Theme';
+import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
+import type { Gender, LookingFor } from '../../types/database';
 
 export default function ProfileBasics() {
   const router = useRouter();
@@ -17,8 +18,10 @@ export default function ProfileBasics() {
   const [occupation, setOccupation] = useState('');
   const [city, setCity] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [lookingFor, setLookingFor] = useState<LookingFor | null>(null);
 
-  const isValid = name.length >= 2 && chapterName.length >= 2;
+  const isValid = name.length >= 2 && chapterName.length >= 2 && gender !== null && lookingFor !== null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -42,6 +45,49 @@ export default function ProfileBasics() {
           placeholder="MM/DD/YYYY"
           keyboardType="number-pad"
         />
+
+        <View style={styles.selectorSection}>
+          <Text style={styles.selectorLabel}>I am a...</Text>
+          <View style={styles.chipGroup}>
+            {([
+              { key: 'male', label: 'Man' },
+              { key: 'female', label: 'Woman' },
+              { key: 'non_binary', label: 'Non-binary' },
+            ] as { key: Gender; label: string }[]).map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.chip, gender === key && styles.chipActive]}
+                onPress={() => setGender(key)}
+              >
+                <Text style={[styles.chipText, gender === key && styles.chipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.selectorSection}>
+          <Text style={styles.selectorLabel}>I'm interested in...</Text>
+          <View style={styles.chipGroup}>
+            {([
+              { key: 'male', label: 'Men' },
+              { key: 'female', label: 'Women' },
+              { key: 'everyone', label: 'Everyone' },
+            ] as { key: LookingFor; label: string }[]).map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.chip, lookingFor === key && styles.chipActive]}
+                onPress={() => setLookingFor(key)}
+              >
+                <Text style={[styles.chipText, lookingFor === key && styles.chipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <Input
           value={chapterName}
           onChangeText={setChapterName}
@@ -88,7 +134,7 @@ export default function ProfileBasics() {
           title="Continue"
           onPress={() => router.push({
             pathname: '/onboarding/photos',
-            params: { org, name, chapterName, lineName, lineNumber, initiationYear, occupation, city, dateOfBirth },
+            params: { org, name, chapterName, lineName, lineNumber, initiationYear, occupation, city, dateOfBirth, gender, lookingFor },
           })}
           disabled={!isValid}
           size="lg"
@@ -129,6 +175,42 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.lg,
     paddingTop: 0,
+  },
+  selectorSection: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  selectorLabel: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
+  },
+  chipGroup: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.gray[300],
+    backgroundColor: Colors.white,
+  },
+  chipActive: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accent + '15',
+  },
+  chipText: {
+    fontSize: FontSize.md,
+    color: Colors.text.secondary,
+    fontWeight: FontWeight.medium,
+  },
+  chipTextActive: {
+    color: Colors.accent,
+    fontWeight: FontWeight.semibold,
   },
   footer: {
     padding: Spacing.lg,

@@ -269,5 +269,56 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Push tokens table
+CREATE TABLE public.push_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, token)
+);
+
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own tokens" ON public.push_tokens FOR ALL USING (auth.uid() = user_id);
+
+-- Analytics: Behavioral signals for ML matching
+CREATE TABLE public.analytics_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'profile_view', 'profile_view_duration', 'swipe_left', 'swipe_right',
+    'like_sent', 'like_received', 'rose_sent', 'message_sent',
+    'message_response', 'match_created', 'we_met_yes', 'we_met_no',
+    'profile_photo_tap', 'prompt_like', 'session_start', 'session_end'
+  )),
+  target_user_id UUID REFERENCES public.users(id),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_analytics_user ON public.analytics_events(user_id, event_type);
+CREATE INDEX idx_analytics_target ON public.analytics_events(target_user_id, event_type);
+CREATE INDEX idx_analytics_time ON public.analytics_events(created_at);
+
+ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can insert own events" ON public.analytics_events FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can read own events" ON public.analytics_events FOR SELECT USING (auth.uid() = user_id);
+
+-- User scoring cache (computed periodically)
+CREATE TABLE public.user_scores (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  profile_quality FLOAT DEFAULT 0.5,
+  response_rate FLOAT DEFAULT 0.5,
+  activity_score FLOAT DEFAULT 0.5,
+  desirability_score FLOAT DEFAULT 0.5,
+  selectivity_score FLOAT DEFAULT 0.5,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.user_scores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Scores readable by authenticated" ON public.user_scores FOR SELECT TO authenticated USING (true);
+CREATE POLICY "System updates scores" ON public.user_scores FOR ALL USING (auth.uid() = user_id);
+
 -- Enable Realtime for messages
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
