@@ -163,6 +163,45 @@ async function main() {
     report('L-6 client moderation INSERT denied', !!error, error?.message || 'insert unexpectedly succeeded');
   }
 
+  // ---- P0-B (C-3): storage buckets ------------------------------------------
+  {
+    // verifications bucket must be private: a public URL must not serve files.
+    // Upload a tiny probe file into our own folder first (allowed), then prove
+    // the public-URL path is dead and clean up is impossible from the client
+    // (no DELETE policy) — so use a unique name to avoid collisions.
+    const probePath = `${me}/verify_probe_${Date.now()}.txt`;
+    const probeBody = new Blob(['rls-probe'], { type: 'text/plain' });
+
+    const { error: upErr } = await supabase.storage
+      .from('verifications')
+      .upload(probePath, probeBody);
+    report('C-3 upload to OWN verifications folder allowed', !upErr, upErr?.message || probePath);
+
+    if (!upErr) {
+      const { data: { publicUrl } } = supabase.storage.from('verifications').getPublicUrl(probePath);
+      const res = await fetch(publicUrl);
+      report('C-3 public URL on verifications is dead', !res.ok, `HTTP ${res.status}`);
+
+      // Owner can still read their own proof via the authenticated API.
+      const { data: dl, error: dlErr } = await supabase.storage.from('verifications').download(probePath);
+      report('C-3 owner can download own proof (authed)', !dlErr && !!dl, dlErr?.message || '');
+    }
+
+    // Upload into ANOTHER user's folder must be denied.
+    const { error: crossErr } = await supabase.storage
+      .from('verifications')
+      .upload(`00000000-0000-0000-0000-000000000001/hijack.txt`, probeBody);
+    report('C-3 upload to another user\'s verifications folder denied', !!crossErr,
+      crossErr?.message || 'upload unexpectedly succeeded');
+
+    // photos: writing into someone else's folder must be denied.
+    const { error: photoCrossErr } = await supabase.storage
+      .from('photos')
+      .upload(`00000000-0000-0000-0000-000000000001/hijack.jpg`, probeBody);
+    report('C-3 upload to another user\'s photos folder denied', !!photoCrossErr,
+      photoCrossErr?.message || 'upload unexpectedly succeeded');
+  }
+
   // ---- L-4: experiment_exposure accepted (and cleaned up) -------------------
   {
     const { data, error } = await supabase
