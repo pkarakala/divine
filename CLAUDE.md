@@ -25,18 +25,26 @@ Pranav Reddy (pkarakala on GitHub). Solo founder/developer. Works across multipl
 
 ```
 divine/
-├── app/              # Screens (Expo Router file-based routing)
-├── assets/           # Images, fonts
-├── components/       # Reusable UI components
-├── constants/        # Theme, config
-├── docs/             # All research, roadmap, architecture docs
-│   ├── research/     # Market analysis, competitive intel, revenue model
-│   ├── roadmap/      # Product roadmap (phases 0-4)
-│   ├── architecture/ # Tech decisions, data model, system design
-│   └── decisions/    # ADRs
-├── app.json          # Expo config
-├── package.json      # Dependencies
-└── tsconfig.json     # TypeScript config
+├── app/                  # Screens (Expo Router file-based routing)
+│   ├── auth/             #   Login, signup, forgot password
+│   ├── onboarding/       #   Profile creation + verification upload
+│   ├── (tabs)/           #   Discover, likes, matches, events, profile
+│   ├── chat/             #   Match conversations
+│   └── settings/         #   Account, preferences, report/block, legal
+├── assets/               # Images, fonts
+├── components/           # Reusable UI components
+├── constants/            # Theme, config (demo creds come from env)
+├── lib/                  # Supabase client, scoring, blocking, notifications, ...
+├── stores/               # Zustand stores (auth, discovery, match)
+├── scripts/              # verify-rls-hardening, seed (guarded), check-db
+├── supabase/
+│   ├── schema.sql        #   Base schema (historical; drifted — see migrations)
+│   ├── migrations/       #   0001-0007 idempotent migrations = policy source of truth
+│   └── functions/        #   Edge Functions (shared-secret auth; see functions/README.md)
+├── docs/                 # Research, roadmap, architecture, AUDIT-HANDOFF.md
+├── .github/workflows/    # CI (typecheck + bundle check)
+├── app.json / eas.json   # Expo + EAS build config
+└── package.json          # Dependencies
 ```
 
 ## Key Documents (Read These First)
@@ -50,25 +58,41 @@ divine/
 
 ## Current Phase
 
-**Phase 0: Foundation** — Scaffolding complete, docs done, ready for feature development.
+**Phase 1: Pre-launch hardening.** Core features are built (auth, onboarding, discovery,
+matching, messaging, events, verification upload). A full security audit
+(`docs/AUDIT-HANDOFF.md`) has been remediated: all P0 and most P1 items are done and
+**applied to the live Supabase project**.
+
+### Server-enforced trust & safety (do not regress these)
+- Migrations `supabase/migrations/0001`–`0007` are the source of truth for policies;
+  `schema.sql` is the base schema only. Migrations are idempotent; apply in order.
+- Matches are created ONLY by a DB trigger on reciprocal like/rose — clients cannot
+  INSERT into `matches`.
+- Exact `latitude`/`longitude` never reach clients: discovery reads the
+  `profiles_discovery` view (intentionally SECURITY DEFINER — its column list is the
+  security boundary), distance via the `distance_bucket` RPC.
+- `users` privileged columns (`is_verified`, `verification_status`, `subscription_tier`)
+  are service-role/admin-only. Blocking, rate limits, and moderation are server-enforced.
+- Edge Functions require an `x-webhook-secret` header (`_shared/auth.ts`); the secret
+  lives in the `WEBHOOK_SECRET` function secret and gitignored `.webhook-secret.local`.
+- Run `npm run verify-rls` after any policy change — 21 live checks must pass.
 
 ### Immediate Next Steps (in order)
-1. Set up Supabase project (create tables from data model in architecture doc)
-2. Implement authentication (phone/email via Supabase Auth)
-3. Build onboarding/profile creation flow (D9 org, chapter, photos, prompts)
-4. Implement discovery screen (card-based, like Hinge)
-5. Build matching system (like/pass/rose + mutual match detection)
-6. Implement messaging (Supabase Realtime)
+1. Sentry crash reporting (before any external users)
+2. Privacy policy / ToS + 18+ age gate (App Store requirements)
+3. First EAS development build → TestFlight beta (Atlanta cohort)
+4. RevenueCat integration (paywall is currently UI-only)
 
 ## Development Commands
 
 ```bash
-npm install          # Install dependencies
-npx expo start      # Start dev server (use Expo Go to test)
-npx expo start --ios    # iOS simulator
-npx expo start --android  # Android emulator
-npx eas-cli build --platform ios --profile development  # Cloud build
-npx eas-cli build --platform android --profile development
+npm install               # Install dependencies
+npx expo start            # Start dev server (use Expo Go to test)
+npm run typecheck         # tsc --noEmit — run after every change
+npm run bundle-check      # expo export --platform ios — run before committing
+npm run verify-rls        # live security suite against Supabase (needs demo creds in .env)
+npx eas-cli build --platform ios --profile development  # Cloud build (EAS project linked)
+npx supabase functions deploy <name> --no-verify-jwt    # Deploy an Edge Function
 ```
 
 ## Design Principles
@@ -82,7 +106,7 @@ npx eas-cli build --platform android --profile development
 
 ## Brand & Aesthetics
 
-- Primary color: Deep navy (#1A1A2E) — sophistication, exclusivity
+- Primary color: Deep navy (#0D0D14) — sophistication, exclusivity (see `constants/Theme.ts` / `app.json`)
 - Accent: Gold (#C9A96E) — Greek letters, prestige
 - Typography: Clean, modern sans-serif
 - Tone: Warm, confident, culturally aware, not corporate
@@ -98,9 +122,14 @@ npx eas-cli build --platform android --profile development
 ## Important Context
 
 - App targets iOS App Store AND Google Play (cross-platform is non-negotiable)
-- Verification is manual for MVP (admin reviews membership claims)
+- Verification is manual for MVP: admin approves in the Supabase Dashboard by setting
+  `verification_status`/`is_verified` on `public.users` (admin writes pass the guard
+  trigger; client writes cannot touch these columns)
 - Launch city is Atlanta (Morehouse, Spelman, large D9 community)
 - Gender ratio must stay 40-60% women — design decisions should protect this
 - EAS Build is required (owner works from multiple devices, no guaranteed local build tools)
 - All code changes must be committed and pushed to GitHub
 - This project is designed so anyone with zero context can clone, read docs, and continue
+  (`.env.example` is tracked; fill it from Supabase Dashboard → Settings → API)
+- DB changes ship as new idempotent files in `supabase/migrations/` which the owner pastes
+  into the Supabase SQL Editor — never modify applied migrations, never apply from session

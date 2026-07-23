@@ -2,7 +2,7 @@
 
 **The exclusive dating app for the Divine 9.**
 
-Divine is a exlusive dating platform built exclusively for members of the National Pan-Hellenic Council (NPHC) — the nine historically Black fraternities and sororities known as the Divine 9. Verified membership is required to join.
+Divine is an exclusive dating platform built for members of the National Pan-Hellenic Council (NPHC) — the nine historically Black fraternities and sororities known as the Divine 9. Verified membership is required to join.
 
 ---
 
@@ -21,17 +21,18 @@ A mobile dating app (iOS + Android) where D9 members connect with verified membe
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Mobile App | Expo (React Native) + TypeScript |
-| Navigation | Expo Router (file-based) |
-| State | Zustand |
-| Backend | Supabase (PostgreSQL, Auth, Realtime, Storage) |
-| Payments | RevenueCat |
-| Push Notifications | Expo Notifications |
-| CI/CD | EAS Build + GitHub Actions |
-| Analytics | Mixpanel / PostHog |
-| Monitoring | Sentry |
+| Layer | Technology | Status |
+|---|---|---|
+| Mobile App | Expo (React Native) + TypeScript | ✅ live |
+| Navigation | Expo Router (file-based) | ✅ live |
+| State | Zustand | ✅ live |
+| Backend | Supabase (PostgreSQL + RLS, Auth, Realtime, Storage, Edge Functions) | ✅ live |
+| Push Notifications | Expo Notifications (DB webhooks → Edge Functions) | ✅ wired |
+| CI | GitHub Actions (typecheck + bundle check) | ✅ live |
+| Builds | EAS Build (project linked) | ✅ linked |
+| Payments | RevenueCat | 🔜 planned |
+| Analytics | local stub (`lib/analytics.ts`) → Mixpanel/PostHog | 🔜 planned |
+| Monitoring | Sentry | 🔜 planned (pre-launch requirement) |
 
 ---
 
@@ -48,7 +49,18 @@ A mobile dating app (iOS + Android) where D9 members connect with verified membe
 git clone https://github.com/pkarakala/divine.git
 cd divine
 npm install
+cp .env.example .env   # then fill in the Supabase URL + anon key (Dashboard → Settings → API)
 npx expo start
+```
+
+Optional `.env` extras: `EXPO_PUBLIC_DEMO_EMAIL` / `EXPO_PUBLIC_DEMO_PASSWORD` enable the
+"Try Demo Account" button on the login screen (hidden when unset).
+
+### Checks
+```bash
+npm run typecheck      # tsc --noEmit
+npm run bundle-check   # expo export --platform ios
+npm run verify-rls     # live RLS/security suite against Supabase (needs demo creds in .env)
 ```
 
 Scan the QR code with Expo Go (Android) or Camera app (iOS) to run on your device.
@@ -101,14 +113,24 @@ All research, decisions, and planning live in `/docs/`:
 
 ## Current Status
 
-**Phase 0: Foundation** — Project scaffolded, documentation complete, ready for feature development.
+**Phase 1: Pre-launch hardening** — Core features built (auth, onboarding, discovery,
+matching, messaging, events, verification upload). Full security audit completed and
+remediated (see `docs/AUDIT-HANDOFF.md`); trust and safety are enforced **server-side**:
+
+- RLS locked down: privileged columns server-only, matches created only by a reciprocal-like
+  DB trigger, exact location never client-readable (`profiles_discovery` view + bucketed
+  `distance_bucket` RPC), scores/moderation service-role-write-only
+- Blocking is server-enforced (blocks table checked in discovery, matching, likes, messages)
+- Verification proofs in a private bucket, owner-scoped
+- Edge Functions deployed with shared-secret auth; DB webhooks + pg_cron wired
+- Server-side daily like limits by subscription tier
+- Migrations live in `supabase/migrations/` (0001–0007, idempotent, applied in order)
 
 ### Next Steps
-1. Set up Supabase project (database, auth, storage)
-2. Build authentication flow (phone/email signup)
-3. Create profile creation wizard with D9-specific fields
-4. Implement card-based discovery UI
-5. Build messaging system
+1. Sentry crash reporting (pre-launch requirement)
+2. Privacy policy / ToS + 18+ age gate (App Store requirement)
+3. First EAS development build → TestFlight beta (Atlanta cohort)
+4. RevenueCat integration (subscriptions currently UI-only)
 
 ---
 
