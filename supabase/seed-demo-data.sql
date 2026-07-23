@@ -26,49 +26,49 @@
 --
 -- TROUBLESHOOTING: If the auth.users INSERT fails with a not-null violation
 -- on "instance_id", add `'00000000-0000-0000-0000-000000000000'::uuid` as
--- the first column value after `id` and add `instance_id,` to the column
--- list — some older Supabase projects require it.
+-- the second value for each row and add `instance_id,` to the column list.
 -- ============================================================================
 
 BEGIN;
 
--- ─── Step 1: Auth users ─────────────────────────────────────────────────────
--- Temporarily disable the handle_new_user trigger so we can manually insert
--- into public.users in Step 2 with the correct is_verified/gender values
--- (avoids fighting the protect_privileged_user_columns BEFORE UPDATE trigger).
-ALTER TABLE auth.users DISABLE TRIGGER on_auth_user_created;
+-- Set service_role context for this transaction so the
+-- protect_privileged_user_columns BEFORE UPDATE trigger allows writing
+-- is_verified / verification_status in Step 2.
+-- auth.role() reads current_setting('request.jwt.claims') — GUC is
+-- session-scoped so SECURITY DEFINER triggers see it too.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
+
+-- ─── Step 1: Auth users ──────────────────────────────────────────────────────
+-- The on_auth_user_created trigger fires for each row and inserts a
+-- public.users row with default values (is_verified=false, gender=NULL).
+-- Step 2 corrects those values via UPDATE.
 INSERT INTO auth.users (
   id, aud, role,
   email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
   raw_app_meta_data, raw_user_meta_data
 ) VALUES
-  -- Priya — SGR / Financial Advisor
   ('a0000001-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
    'priya@divine-test.com', '',
    NOW(), NOW(), NOW(),
    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
 
-  -- Aaliyah — AKA / Pediatric Nurse
   ('a0000002-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
    'aaliyah@divine-test.com', '',
    NOW(), NOW(), NOW(),
    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
 
-  -- Simone — DST / UX Designer
   ('a0000003-0000-0000-0000-000000000003', 'authenticated', 'authenticated',
    'simone@divine-test.com', '',
    NOW(), NOW(), NOW(),
    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
 
-  -- Kennedy — ZPB / School Principal
   ('a0000004-0000-0000-0000-000000000004', 'authenticated', 'authenticated',
    'kennedy@divine-test.com', '',
    NOW(), NOW(), NOW(),
    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
 
-  -- Noelle — SGR / Broadcast Journalist
   ('a0000005-0000-0000-0000-000000000005', 'authenticated', 'authenticated',
    'noelle@divine-test.com', '',
    NOW(), NOW(), NOW(),
@@ -76,26 +76,25 @@ INSERT INTO auth.users (
 
 ON CONFLICT DO NOTHING;
 
-ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created;
 
-
--- ─── Step 2: public.users ────────────────────────────────────────────────────
--- Direct INSERT with correct privileged values. Because we skipped the
--- handle_new_user trigger in Step 1, no public.users rows exist for these
--- users yet — this INSERT creates them fresh, bypassing the UPDATE trigger
--- that would otherwise revert is_verified / verification_status.
-INSERT INTO public.users (
-  id, email,
-  is_verified, verification_status,
-  gender, looking_for,
-  last_active_at, created_at, updated_at
-) VALUES
-  ('a0000001-0000-0000-0000-000000000001', 'priya@divine-test.com',   true, 'approved', 'female', 'male', NOW(), NOW(), NOW()),
-  ('a0000002-0000-0000-0000-000000000002', 'aaliyah@divine-test.com', true, 'approved', 'female', 'male', NOW(), NOW(), NOW()),
-  ('a0000003-0000-0000-0000-000000000003', 'simone@divine-test.com',  true, 'approved', 'female', 'male', NOW(), NOW(), NOW()),
-  ('a0000004-0000-0000-0000-000000000004', 'kennedy@divine-test.com', true, 'approved', 'female', 'male', NOW(), NOW(), NOW()),
-  ('a0000005-0000-0000-0000-000000000005', 'noelle@divine-test.com',  true, 'approved', 'female', 'male', NOW(), NOW(), NOW())
-ON CONFLICT (id) DO NOTHING;
+-- ─── Step 2: Set verified + gender on public.users ───────────────────────────
+-- The protect_privileged_user_columns trigger sees role='service_role'
+-- (from set_config above) and allows writing is_verified / verification_status.
+-- gender / looking_for are never protected — they update unconditionally.
+UPDATE public.users
+SET
+  is_verified         = true,
+  verification_status = 'approved',
+  gender              = 'female',
+  looking_for         = 'male',
+  last_active_at      = NOW()
+WHERE email IN (
+  'priya@divine-test.com',
+  'aaliyah@divine-test.com',
+  'simone@divine-test.com',
+  'kennedy@divine-test.com',
+  'noelle@divine-test.com'
+);
 
 
 -- ─── Step 3: Profiles ────────────────────────────────────────────────────────
@@ -149,8 +148,7 @@ ON CONFLICT (user_id) DO NOTHING;
 
 
 -- ─── Step 4: Photos ──────────────────────────────────────────────────────────
--- Fixed UUIDs let interactions in Step 5 reference the primary photo by ID.
--- Pattern: bXXXX01-... = primary photo for user aXXXX-...
+-- Fixed UUIDs so interactions in Step 5 can reference primary photos by ID.
 INSERT INTO public.photos (id, user_id, storage_path, order_index, is_primary, created_at)
 VALUES
   -- Priya
@@ -177,30 +175,30 @@ ON CONFLICT (id) DO NOTHING;
 
 
 -- ─── Step 5: Prompts ─────────────────────────────────────────────────────────
--- WHERE NOT EXISTS guards against duplicate rows (prompts has no unique constraint).
+-- WHERE NOT EXISTS guards against duplicates (no unique constraint on prompts).
 INSERT INTO public.prompts (user_id, prompt_question, prompt_answer, order_index, type, created_at)
 SELECT v.user_id, v.question, v.answer, v.idx, 'text', NOW()
 FROM (VALUES
   -- Priya
-  ('a0000001-0000-0000-0000-000000000001'::uuid, 'Greek life taught me...',         'That real sisterhood shows up at 6am for community service and still makes it look effortless.', 0),
-  ('a0000001-0000-0000-0000-000000000001'::uuid, 'A perfect date for me looks like...', 'Rooftop dinner, honest conversation, and stargazing afterward. Simple but intentional.',         1),
-  ('a0000001-0000-0000-0000-000000000001'::uuid, 'The way to my heart is...',       'Lead with purpose. I''m drawn to someone who knows where they''re going and still makes time for others.', 2),
+  ('a0000001-0000-0000-0000-000000000001'::uuid, 'Greek life taught me...',              'That real sisterhood shows up at 6am for community service and still makes it look effortless.',                                               0),
+  ('a0000001-0000-0000-0000-000000000001'::uuid, 'A perfect date for me looks like...',  'Rooftop dinner, honest conversation, and stargazing afterward. Simple but intentional.',                                                          1),
+  ('a0000001-0000-0000-0000-000000000001'::uuid, 'The way to my heart is...',            'Lead with purpose. I''m drawn to someone who knows where they''re going and still makes time for others.',                                        2),
   -- Aaliyah
-  ('a0000002-0000-0000-0000-000000000002'::uuid, 'My chapter means everything because...', 'Every sister has pushed me to be more — more intentional, more compassionate, more present.', 0),
-  ('a0000002-0000-0000-0000-000000000002'::uuid, 'At homecoming, you''ll find me...', 'On my feet from the yard to the step show. I don''t rest until I''ve seen every soror stroll.', 1),
-  ('a0000002-0000-0000-0000-000000000002'::uuid, 'My love language is...',           'Acts of service — it''s what I do at work all day, and it''s how I love the people I care about.', 2),
+  ('a0000002-0000-0000-0000-000000000002'::uuid, 'My chapter means everything because...','Every sister has pushed me to be more — more intentional, more compassionate, more present.',                                                    0),
+  ('a0000002-0000-0000-0000-000000000002'::uuid, 'At homecoming, you''ll find me...',    'On my feet from the yard to the step show. I don''t rest until I''ve seen every soror stroll.',                                                  1),
+  ('a0000002-0000-0000-0000-000000000002'::uuid, 'My love language is...',               'Acts of service — it''s what I do at work all day, and it''s how I love the people I care about.',                                               2),
   -- Simone
-  ('a0000003-0000-0000-0000-000000000003'::uuid, 'The community service project closest to my heart...', 'Teaching girls to code at the library. Technology should look like all of us.', 0),
-  ('a0000003-0000-0000-0000-000000000003'::uuid, 'What I''m looking for in a partner...', 'Someone growth-oriented and self-aware. I want to build, not just date.', 1),
-  ('a0000003-0000-0000-0000-000000000003'::uuid, 'My line name story is...',         'They called me Digital Delta because I was prototyping apps between chapter meetings. Multitasking is spiritual.', 2),
+  ('a0000003-0000-0000-0000-000000000003'::uuid, 'The community service project closest to my heart...', 'Teaching girls to code at the library. Technology should look like all of us.',                                                    0),
+  ('a0000003-0000-0000-0000-000000000003'::uuid, 'What I''m looking for in a partner...','Someone growth-oriented and self-aware. I want to build, not just date.',                                                                         1),
+  ('a0000003-0000-0000-0000-000000000003'::uuid, 'My line name story is...',             'They called me Digital Delta because I was prototyping apps between chapter meetings. Multitasking is spiritual.',                                 2),
   -- Kennedy
-  ('a0000004-0000-0000-0000-000000000004'::uuid, 'I knew I found my org when...',   'I saw a Zeta woman lead a city council meeting and then tutor third graders the same afternoon.', 0),
-  ('a0000004-0000-0000-0000-000000000004'::uuid, 'On weekends you''ll find me...',   'At my school''s garden with kids who need somewhere to be. The classroom doesn''t end at 3pm.',  1),
-  ('a0000004-0000-0000-0000-000000000004'::uuid, 'My proudest achievement is...',   'Getting our school''s graduation rate from 74% to 91% in three years. Every number is a child.', 2),
+  ('a0000004-0000-0000-0000-000000000004'::uuid, 'I knew I found my org when...',        'I saw a Zeta woman lead a city council meeting and then tutor third graders the same afternoon.',                                                  0),
+  ('a0000004-0000-0000-0000-000000000004'::uuid, 'On weekends you''ll find me...',       'At my school''s garden with kids who need somewhere to be. The classroom doesn''t end at 3pm.',                                                   1),
+  ('a0000004-0000-0000-0000-000000000004'::uuid, 'My proudest achievement is...',        'Getting our school''s graduation rate from 74% to 91% in three years. Every number is a child.',                                                  2),
   -- Noelle
-  ('a0000005-0000-0000-0000-000000000005'::uuid, 'Probate night was unforgettable because...', 'I crossed at midnight. My line sisters were crying. The yard erupted. I''ve never felt more seen.', 0),
-  ('a0000005-0000-0000-0000-000000000005'::uuid, 'A perfect date for me looks like...', 'Explore a neighborhood we''ve never been to. Street food, no agenda, and a good story to tell later.', 1),
-  ('a0000005-0000-0000-0000-000000000005'::uuid, 'Greek life taught me...',          'That legacy matters. Everything I do now is being watched by someone who comes after me.',          2)
+  ('a0000005-0000-0000-0000-000000000005'::uuid, 'Probate night was unforgettable because...', 'I crossed at midnight. My line sisters were crying. The yard erupted. I''ve never felt more seen.',                                         0),
+  ('a0000005-0000-0000-0000-000000000005'::uuid, 'A perfect date for me looks like...',  'Explore a neighborhood we''ve never been to. Street food, no agenda, and a good story to tell later.',                                            1),
+  ('a0000005-0000-0000-0000-000000000005'::uuid, 'Greek life taught me...',              'That legacy matters. Everything I do now is being watched by someone who comes after me.',                                                         2)
 ) AS v(user_id, question, answer, idx)
 WHERE NOT EXISTS (
   SELECT 1 FROM public.prompts p
@@ -211,17 +209,16 @@ WHERE NOT EXISTS (
 -- ─── Step 6: Likes → demo account (populates the Likes tab) ─────────────────
 -- likes.tsx query: receiver_id = demo.id, type IN ('like','rose'), seen_at IS NULL
 -- target_type/target_id are required; we point each at the sender's primary photo.
--- No unique constraint on interactions — WHERE NOT EXISTS prevents duplicates.
-
+-- WHERE NOT EXISTS prevents duplicates on re-run (no unique constraint).
 INSERT INTO public.interactions (
   sender_id, receiver_id, type, target_type, target_id, comment, created_at
 )
 SELECT
   v.sender_id,
-  demo.id                AS receiver_id,
+  demo.id       AS receiver_id,
   v.itype,
-  'photo'                AS target_type,
-  v.photo_id             AS target_id,
+  'photo'       AS target_type,
+  v.photo_id    AS target_id,
   v.comment,
   v.ts
 FROM (VALUES
@@ -229,7 +226,7 @@ FROM (VALUES
   ('a0000001-0000-0000-0000-000000000001'::uuid, 'b0000001-0000-0000-0000-000000000001'::uuid,
    'like'::text, 'I love your vision for entrepreneurship. Would love to connect.',
    NOW() - INTERVAL '2 hours'),
-  -- Aaliyah: like, no comment (5h ago)
+  -- Aaliyah: silent like (5h ago)
   ('a0000002-0000-0000-0000-000000000002'::uuid, 'b0000002-0000-0000-0000-000000000001'::uuid,
    'like'::text, NULL,
    NOW() - INTERVAL '5 hours'),
@@ -251,27 +248,25 @@ WHERE NOT EXISTS (
 );
 
 
--- ─── Step 7: Demo likes back (creates 2 matches via trigger) ─────────────────
--- The create_match_on_reciprocal trigger fires AFTER each INSERT here.
--- It sees the reciprocal likes inserted in Step 6 and auto-creates the match.
--- No manual INSERT into matches needed — and clients couldn't do it anyway (C-2).
--- Insert Priya first so Aaliyah's match fires cleanly in the same transaction.
-
+-- ─── Step 7: Demo likes back → 2 matches via trigger ────────────────────────
+-- create_match_on_reciprocal fires AFTER each INSERT here. It finds the
+-- reciprocal likes from Step 6 and auto-inserts into public.matches.
+-- No manual match INSERT needed (and clients can't do it — C-2 hardening).
 INSERT INTO public.interactions (
   sender_id, receiver_id, type, target_type, target_id, created_at
 )
 SELECT
-  demo.id              AS sender_id,
+  demo.id         AS sender_id,
   v.receiver_id,
-  'like'               AS type,
-  'photo'              AS target_type,
+  'like'          AS type,
+  'photo'         AS target_type,
   (SELECT ph.id FROM public.photos ph
    WHERE ph.user_id = v.receiver_id AND ph.is_primary = true
-   LIMIT 1)            AS target_id,
+   LIMIT 1)       AS target_id,
   v.ts
 FROM (VALUES
-  ('a0000001-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '1 hour'),   -- demo → Priya
-  ('a0000002-0000-0000-0000-000000000002'::uuid, NOW() - INTERVAL '4 hours')   -- demo → Aaliyah
+  ('a0000001-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '1 hour'),   -- demo → Priya  → match
+  ('a0000002-0000-0000-0000-000000000002'::uuid, NOW() - INTERVAL '4 hours')   -- demo → Aaliyah → match
 ) AS v(receiver_id, ts),
 LATERAL (SELECT id FROM public.users WHERE email = 'demo@divine-test.com') AS demo
 WHERE NOT EXISTS (
