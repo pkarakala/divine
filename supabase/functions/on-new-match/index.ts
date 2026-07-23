@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireWebhookSecret } from '../_shared/auth.ts';
+import { sendPushMessages } from '../_shared/push.ts';
 
 serve(async (req) => {
   const denied = requireWebhookSecret(req);
@@ -20,20 +21,20 @@ serve(async (req) => {
   ]);
 
   const sendNotification = async (userId: string, otherName: string) => {
-    const { data: tokens } = await supabase.from('push_tokens').select('token').eq('user_id', userId);
+    const { data: tokens, error } = await supabase.from('push_tokens').select('token').eq('user_id', userId);
+    if (error) {
+      console.error('push_tokens query failed:', error.message);
+      return;
+    }
     if (!tokens?.length) return;
 
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tokens.map(t => ({
-        to: t.token,
-        title: "It's a Match! \u{1F389}",
-        body: `You and ${otherName} liked each other!`,
-        data: { type: 'match', matchId: record.id },
-        sound: 'default',
-      }))),
-    });
+    await sendPushMessages(supabase, tokens.map(t => ({
+      to: t.token,
+      title: "It's a Match! \u{1F389}",
+      body: `You and ${otherName} liked each other!`,
+      data: { type: 'match', matchId: record.id },
+      sound: 'default',
+    })));
   };
 
   await Promise.all([

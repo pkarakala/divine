@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireWebhookSecret } from '../_shared/auth.ts';
+import { sendPushMessages } from '../_shared/push.ts';
 
 serve(async (req) => {
   const denied = requireWebhookSecret(req);
@@ -25,24 +26,24 @@ serve(async (req) => {
   const title = type === 'rose' ? 'Someone sent you a rose! \u{1F339}' : 'Someone likes you! ♥';
   const body = `${senderProfile?.display_name || 'Someone'} is interested in you`;
 
-  const { data: tokens } = await supabase
+  const { data: tokens, error: tokensError } = await supabase
     .from('push_tokens')
     .select('token')
     .eq('user_id', receiver_id);
 
+  if (tokensError) {
+    console.error('push_tokens query failed:', tokensError.message);
+    return new Response(JSON.stringify({ error: 'token lookup failed' }), { status: 500 });
+  }
   if (!tokens?.length) return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
 
-  await fetch('https://exp.host/--/api/v2/push/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(tokens.map(t => ({
-      to: t.token,
-      title,
-      body,
-      data: { type: 'like' },
-      sound: 'default',
-    }))),
-  });
+  const result = await sendPushMessages(supabase, tokens.map(t => ({
+    to: t.token,
+    title,
+    body,
+    data: { type: 'like' },
+    sound: 'default',
+  })));
 
-  return new Response(JSON.stringify({ sent: tokens.length }), { status: 200 });
+  return new Response(JSON.stringify(result), { status: 200 });
 });
