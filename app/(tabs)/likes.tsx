@@ -72,8 +72,10 @@ export default function Likes() {
 
     const items: LikeItem[] = await Promise.all(
       filteredInteractions.map(async (interaction) => {
+        // Likers aren't matches yet, so read via the discovery view (base
+        // profiles SELECT is own-row + matches only after the RLS hardening).
         const [profileRes, photoRes] = await Promise.all([
-          supabase.from('profiles').select('*').eq('user_id', interaction.sender_id).single(),
+          supabase.from('profiles_discovery').select('*').eq('user_id', interaction.sender_id).single(),
           supabase.from('photos').select('*').eq('user_id', interaction.sender_id).eq('is_primary', true).single(),
         ]);
         return {
@@ -98,29 +100,12 @@ export default function Likes() {
 
     const excludeIds = [user.id, ...(myInteractions?.map(i => i.receiver_id) || [])];
 
-    const { data: scores } = await supabase
-      .from('user_scores')
-      .select('user_id, desirability_score')
-      .not('user_id', 'in', `(${excludeIds.join(',')})`)
-      .order('desirability_score', { ascending: false })
-      .limit(5);
-
-    if (scores && scores.length > 0) {
-      const profiles: StandoutProfile[] = await Promise.all(
-        scores.map(async (s) => {
-          const [profileRes, photoRes] = await Promise.all([
-            supabase.from('profiles').select('*').eq('user_id', s.user_id).single(),
-            supabase.from('photos').select('*').eq('user_id', s.user_id).eq('is_primary', true).single(),
-          ]);
-          return { profile: profileRes.data!, photo: photoRes.data, score: s.desirability_score };
-        })
-      );
-      setStandouts(profiles);
-      return;
-    }
-
+    // user_scores reads are owner-scoped now (RLS hardening, M-5), so ranking
+    // standouts by others' desirability scores is a server-side concern.
+    // Until a curated server endpoint exists, rank by profile completeness
+    // using the discovery view (no exact location exposed).
     const { data: fallbackProfiles } = await supabase
-      .from('profiles')
+      .from('profiles_discovery')
       .select('*')
       .not('user_id', 'in', `(${excludeIds.join(',')})`)
       .limit(10);
