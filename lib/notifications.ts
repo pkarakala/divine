@@ -44,12 +44,23 @@ export async function registerForPushNotifications(userId: string): Promise<stri
     });
   }
 
+  // H-5: without an EAS projectId (set by `eas init` into extra.eas.projectId)
+  // getExpoPushTokenAsync throws in production builds. Log and skip instead of
+  // breaking the caller — the app works without push, just unregistered.
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId,
-  });
+  if (!projectId) {
+    console.warn('[notifications] No EAS projectId configured; skipping push registration. Run `eas init`.');
+    return null;
+  }
 
-  const token = tokenData.data;
+  let token: string;
+  try {
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    token = tokenData.data;
+  } catch (e) {
+    console.warn('[notifications] getExpoPushTokenAsync failed:', e);
+    return null;
+  }
 
   await supabase
     .from('push_tokens')
@@ -63,13 +74,18 @@ export async function registerForPushNotifications(userId: string): Promise<stri
 
 export async function unregisterPushToken(userId: string): Promise<void> {
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+  if (!projectId) return;
 
-  await supabase
-    .from('push_tokens')
-    .delete()
-    .eq('user_id', userId)
-    .eq('token', tokenData.data);
+  try {
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    await supabase
+      .from('push_tokens')
+      .delete()
+      .eq('user_id', userId)
+      .eq('token', tokenData.data);
+  } catch (e) {
+    console.warn('[notifications] unregisterPushToken failed:', e);
+  }
 }
 
 export async function schedulePushNotification(
