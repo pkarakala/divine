@@ -45,3 +45,4 @@ yarn-error.*
 /android
 .webhook-secret.local
 .cron-setup.local.sql
+supabase/.temp/
