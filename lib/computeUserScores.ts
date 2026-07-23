@@ -6,7 +6,26 @@ const GENDER_LIKE_RATE_BASELINES: Record<string, number> = {
   non_binary: 0.15,
 };
 
-export async function computeAndSaveUserScores(userId: string) {
+/**
+ * Compute this user's ranking scores for local/preview use.
+ *
+ * NOTE: user_scores is now service-role-write-only (see
+ * supabase/migrations/0001_p0a_rls_hardening.sql, finding M-5) — a user could
+ * previously write their own desirability/selectivity scores to game ordering.
+ * The authoritative scores are computed and persisted by the `recompute-scores`
+ * Edge Function. This function no longer writes to the database; it returns the
+ * computed values so callers can use a fresh estimate without a round-trip, and
+ * the persisted row is refreshed server-side on the recompute schedule.
+ */
+export interface ComputedUserScores {
+  profile_quality: number;
+  response_rate: number;
+  activity_score: number;
+  desirability_score: number;
+  selectivity_score: number;
+}
+
+export async function computeAndSaveUserScores(userId: string): Promise<ComputedUserScores> {
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
@@ -97,13 +116,13 @@ export async function computeAndSaveUserScores(userId: string) {
   const hoursSinceActive = (Date.now() - lastActive.getTime()) / 3600000;
   const activityScore = Math.max(0, 1 - hoursSinceActive / 168);
 
-  await supabase.from('user_scores').upsert({
-    user_id: userId,
+  // Persisting these is the server's job now (recompute-scores Edge Function,
+  // service role). RLS would reject a client upsert here.
+  return {
     profile_quality: Math.round(profileQuality * 100) / 100,
     response_rate: Math.round(responseRate * 100) / 100,
     activity_score: Math.round(activityScore * 100) / 100,
     desirability_score: Math.round(desirabilityPercentile * 100) / 100,
     selectivity_score: Math.round(selectivity * 100) / 100,
-    updated_at: new Date().toISOString(),
-  });
+  };
 }

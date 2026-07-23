@@ -185,10 +185,13 @@ export async function rankProfiles(
     .eq('id', viewerId)
     .single();
 
+  // user_scores SELECT is owner-scoped now (0001_p0a_rls_hardening.sql, M-5):
+  // only the viewer's own row is readable. Candidate scores fall back to the
+  // 0.5 defaults below; candidate-aware ranking belongs server-side.
   const { data: scores } = await supabase
     .from('user_scores')
     .select('*')
-    .in('user_id', [viewerId, ...candidateUserIds]);
+    .eq('user_id', viewerId);
 
   const { data: candidateUsers } = await supabase
     .from('users')
@@ -203,7 +206,7 @@ export async function rankProfiles(
     .in('type', ['like', 'rose']);
 
   const { data: candidateProfiles } = await supabase
-    .from('profiles')
+    .from('profiles_discovery')
     .select('user_id, city, organization, date_of_birth, org_preference')
     .in('user_id', candidateUserIds);
 
