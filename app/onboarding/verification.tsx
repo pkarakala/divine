@@ -93,19 +93,24 @@ export default function Verification() {
         });
       }
 
-      // Upload verification proof
+      // Upload verification proof. The verifications bucket is PRIVATE
+      // (membership-card PII — see 0002_p0b_storage_hardening.sql, C-3):
+      // store the storage path, never a public URL. Admin review generates
+      // short-lived signed URLs server-side.
       if (proofUri) {
         const proofFileName = `${userId}/verification_${Date.now()}.jpg`;
         const proofResponse = await fetch(proofUri);
         const proofBlob = await proofResponse.blob();
-        await supabase.storage.from('verifications').upload(proofFileName, proofBlob, { contentType: 'image/jpeg' });
-        const { data: { publicUrl: proofUrl } } = supabase.storage.from('verifications').getPublicUrl(proofFileName);
+        const { error: proofUploadError } = await supabase.storage
+          .from('verifications')
+          .upload(proofFileName, proofBlob, { contentType: 'image/jpeg' });
+        if (proofUploadError) throw proofUploadError;
         await supabase.from('verifications').insert({
           user_id: userId,
           organization: params.org as Organization,
           chapter_name: params.chapterName as string,
           proof_type: 'membership_card',
-          proof_url: proofUrl,
+          proof_url: proofFileName,
           status: 'pending',
         });
       }
