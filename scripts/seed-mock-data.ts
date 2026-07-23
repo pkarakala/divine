@@ -1,13 +1,30 @@
 import ws from 'ws';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://mzjqoqyrhyseciyhaygi.supabase.co';
+// M-8 guardrails: no default target (the prod URL used to be the fallback —
+// one accidental run seeded mock users into production). The target must be
+// explicit and the run must be confirmed with --yes.
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
+if (!SUPABASE_URL) {
+  console.error('Set EXPO_PUBLIC_SUPABASE_URL explicitly — this script has NO default target.');
+  process.exit(1);
+}
 if (!SUPABASE_SERVICE_KEY) {
   console.error('Set SUPABASE_SERVICE_ROLE_KEY env var (find it in Supabase Dashboard > Settings > API)');
   process.exit(1);
 }
+if (!process.argv.includes('--yes')) {
+  console.error(`This will WRITE MOCK DATA to: ${SUPABASE_URL}`);
+  console.error('If that is really the project you want (not production!), re-run with --yes');
+  process.exit(1);
+}
+if (!process.env.EXPO_PUBLIC_DEMO_PASSWORD) {
+  console.error('Set EXPO_PUBLIC_DEMO_PASSWORD — the demo account is created/reset with this password.');
+  process.exit(1);
+}
+console.log(`Seeding mock data into: ${SUPABASE_URL}`);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -15,8 +32,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 const DEMO_USER = {
-  email: 'demo@divine-test.com',
-  password: 'DivineDemo2026!',
+  email: process.env.EXPO_PUBLIC_DEMO_EMAIL || 'demo@divine-test.com',
+  password: process.env.EXPO_PUBLIC_DEMO_PASSWORD || '',
   display_name: 'Alex',
   date_of_birth: '1995-07-20',
   city: 'Atlanta',

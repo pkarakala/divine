@@ -1,9 +1,18 @@
 import ws from 'ws';
 import { createClient } from '@supabase/supabase-js';
 
+// M-8: no hardcoded prod target; require an explicit URL. Read-only script,
+// but it uses the service role, so be deliberate about where it points.
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+if (!SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Set EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY explicitly.');
+  process.exit(1);
+}
+console.log(`Checking DB: ${SUPABASE_URL}`);
+
 const supabase = createClient(
-  'https://mzjqoqyrhyseciyhaygi.supabase.co',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false }, realtime: { transport: ws } }
 );
 
