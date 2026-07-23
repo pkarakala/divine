@@ -112,18 +112,16 @@ export async function moderatePhoto(
   photoId: string,
   imageUrl: string
 ): Promise<ModerationResult> {
+  // Local analysis is used only for immediate UX feedback. The authoritative
+  // moderation verdict is written server-side by the `moderate-photo` Edge
+  // Function (triggered on photos INSERT): photo_moderation is now
+  // service-role-write-only (see supabase/migrations/0001_p0a_rls_hardening.sql,
+  // finding L-6), so the client must not upsert the verdict itself.
   const result = await provider.analyzeImage(imageUrl);
 
-  await supabase.from('photo_moderation').upsert({
-    photo_id: photoId,
-    user_id: userId,
-    status: result.status,
-    confidence: result.confidence,
-    flags: result.flags,
-    requires_human_review: result.requiresHumanReview,
-    reviewed_at: result.status === 'approved' ? new Date().toISOString() : null,
-  });
-
+  // A locally-obvious rejection can still be cleaned up by the owner (photos
+  // DELETE remains permitted for one's own rows); the server-side function is
+  // the source of truth for anything the local heuristic can't judge.
   if (result.status === 'rejected') {
     await supabase.from('photos').delete().eq('id', photoId);
   }
