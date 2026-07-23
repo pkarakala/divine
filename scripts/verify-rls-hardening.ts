@@ -202,6 +202,78 @@ async function main() {
       photoCrossErr?.message || 'upload unexpectedly succeeded');
   }
 
+  // ---- P0-C (C-4): server-enforced blocking ---------------------------------
+  {
+    // Find a real other user via discovery to use as the block target.
+    const { data: candidates } = await supabase
+      .from('profiles_discovery')
+      .select('user_id, display_name')
+      .neq('user_id', me)
+      .limit(1);
+    const target = candidates?.[0]?.user_id;
+
+    if (!target) {
+      report('C-4 blocking checks', false, 'no other user visible in discovery to test against');
+    } else {
+      // Forged block (blocker_id != me) must be denied.
+      const { error: forgeErr } = await supabase.from('blocks').insert({
+        blocker_id: target,
+        blocked_id: me,
+      });
+      report('C-4 forged block (as another user) denied', !!forgeErr,
+        forgeErr?.message || 'insert unexpectedly succeeded');
+
+      // Own block insert works.
+      const { error: blockErr } = await supabase.from('blocks').insert({
+        blocker_id: me,
+        blocked_id: target,
+      });
+      const blockOk = !blockErr || blockErr.code === '23505';
+      report('C-4 own block insert allowed', blockOk, blockErr?.message || `blocked ${target}`);
+
+      if (blockOk) {
+        // Blocked user must vanish from discovery.
+        const { data: stillThere } = await supabase
+          .from('profiles_discovery')
+          .select('user_id')
+          .eq('user_id', target);
+        report('C-4 blocked user hidden from discovery', (stillThere || []).length === 0,
+          `${(stillThere || []).length} rows`);
+
+        // Liking a blocked user must be denied by the interactions policy.
+        const { error: likeErr } = await supabase.from('interactions').insert({
+          sender_id: me,
+          receiver_id: target,
+          type: 'like',
+          target_type: 'photo',
+          target_id: '00000000-0000-0000-0000-000000000001',
+        });
+        report('C-4 like toward blocked user denied', !!likeErr,
+          likeErr?.message || 'insert unexpectedly succeeded');
+
+        // Unblock (cleanup) and confirm they reappear in discovery.
+        await supabase.from('blocks').delete().eq('blocker_id', me).eq('blocked_id', target);
+        const { data: back } = await supabase
+          .from('profiles_discovery')
+          .select('user_id')
+          .eq('user_id', target);
+        report('C-4 unblock restores discovery visibility', (back || []).length === 1,
+          `${(back || []).length} rows`);
+      }
+    }
+
+    // reports: client-set status must be rejected (column not granted).
+    const { error: statusErr } = await supabase.from('reports').insert({
+      reporter_id: me,
+      reported_id: target || me,
+      reason: 'other',
+      details: 'verify probe',
+      status: 'actioned',
+    });
+    report('C-4 reports INSERT with client-set status denied', !!statusErr,
+      statusErr?.message || 'insert unexpectedly succeeded');
+  }
+
   // ---- L-4: experiment_exposure accepted (and cleaned up) -------------------
   {
     const { data, error } = await supabase
