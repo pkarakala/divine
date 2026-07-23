@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
+import { purchasesEnabled, getCurrentOffering, purchasePackage, restorePurchases } from '../../lib/purchases';
+import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 
 type Plan = 'plus' | 'elite';
 
@@ -44,12 +46,49 @@ export default function Paywall() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<Plan>('plus');
   const [annual, setAnnual] = useState(false);
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null);
+  const [purchasing, setPurchasing] = useState(false);
 
-  const handleSubscribe = () => {
+  useEffect(() => {
+    if (purchasesEnabled) getCurrentOffering().then(setOffering);
+  }, []);
+
+  // Map plan/period to a RevenueCat package identifier configured in the
+  // RevenueCat dashboard offering (e.g. "plus_monthly", "elite_annual").
+  const findPackage = (): PurchasesPackage | null => {
+    if (!offering) return null;
+    const id = `${selectedPlan}_${annual ? 'annual' : 'monthly'}`;
+    return offering.availablePackages.find(p => p.identifier === id) ?? null;
+  };
+
+  const handleSubscribe = async () => {
+    const pkg = findPackage();
+    if (!purchasesEnabled || !pkg) {
+      // RevenueCat not configured (or package missing): keep the honest stub.
+      Alert.alert(
+        'Coming Soon',
+        `${PLANS[selectedPlan].name} subscriptions will be available when the app launches on the App Store. You'll be the first to know!`,
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+      return;
+    }
+    setPurchasing(true);
+    const info = await purchasePackage(pkg);
+    setPurchasing(false);
+    if (info) {
+      // Server-side: the RevenueCat webhook updates users.subscription_tier
+      // (client cannot write tier columns — C-1). UI unlocks on next fetch.
+      Alert.alert('Welcome to ' + PLANS[selectedPlan].name + '!', 'Your subscription is active.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    }
+  };
+
+  const handleRestore = async () => {
+    const info = await restorePurchases();
     Alert.alert(
-      'Coming Soon',
-      `${PLANS[selectedPlan].name} subscriptions will be available when the app launches on the App Store. You'll be the first to know!`,
-      [{ text: 'OK', onPress: () => router.back() }]
+      info ? 'Purchases Restored' : 'Nothing to Restore',
+      info ? 'Your subscription has been restored.' : 'No previous purchases were found for this account.'
     );
   };
 
@@ -105,9 +144,18 @@ export default function Paywall() {
         <Button
           title={`Subscribe to ${PLANS[selectedPlan].name}`}
           onPress={handleSubscribe}
+          loading={purchasing}
           size="lg"
           variant="secondary"
         />
+        {purchasesEnabled && (
+          <Button
+            title="Restore Purchases"
+            onPress={handleRestore}
+            variant="ghost"
+            size="sm"
+          />
+        )}
 
         <Text style={styles.terms}>
           Payment will be charged to your App Store account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.

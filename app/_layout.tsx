@@ -11,6 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { ErrorBoundary as AppErrorBoundary } from '../components/ErrorBoundary';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { initSentry, setSentryUser, wrapRoot } from '../lib/sentry';
+import { initPurchases } from '../lib/purchases';
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
@@ -63,6 +64,7 @@ function RootLayout() {
     setAnalyticsUser(user.id);
     trackSessionStart();
 
+    initPurchases(user.id);
     registerForPushNotifications(user.id);
 
     responseListener.current = addNotificationResponseListener((response) => {
