@@ -24,11 +24,88 @@
 BEGIN;
 
 -- ----------------------------------------------------------------------------
--- 0. New column: users.is_paused (referenced by app/settings/account.tsx, but
---    absent from the base schema — the pause toggle currently errors).
+-- 0. Schema-drift repair: the live DB predates some later additions in
+--    schema.sql, so create them here idempotently before hardening them.
 -- ----------------------------------------------------------------------------
+
+-- users.is_paused (referenced by app/settings/account.tsx, but absent from the
+-- base schema — the pause toggle currently errors).
 ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS is_paused BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- users.public_key (schema.sql:337; missing on the live DB — first apply
+-- failed with 42703 on the column grant below).
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS public_key TEXT;
+
+-- analytics_events (schema.sql:286) — created here if absent so the CHECK
+-- swap in L-4 below always has a table to act on.
+CREATE TABLE IF NOT EXISTS public.analytics_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  target_user_id UUID REFERENCES public.users(id),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_user ON public.analytics_events(user_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_analytics_target ON public.analytics_events(target_user_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_analytics_time ON public.analytics_events(created_at);
+ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can insert own events" ON public.analytics_events;
+CREATE POLICY "Users can insert own events" ON public.analytics_events
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can read own events" ON public.analytics_events;
+CREATE POLICY "Users can read own events" ON public.analytics_events
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- user_scores (schema.sql:309) — created here if absent so M-5 below applies.
+CREATE TABLE IF NOT EXISTS public.user_scores (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  profile_quality FLOAT DEFAULT 0.5,
+  response_rate FLOAT DEFAULT 0.5,
+  activity_score FLOAT DEFAULT 0.5,
+  desirability_score FLOAT DEFAULT 0.5,
+  selectivity_score FLOAT DEFAULT 0.5,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.user_scores ENABLE ROW LEVEL SECURITY;
+
+-- photo_moderation (schema.sql:340) — created here if absent so L-6 applies.
+CREATE TABLE IF NOT EXISTS public.photo_moderation (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  photo_id UUID NOT NULL REFERENCES public.photos(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'flagged')),
+  confidence FLOAT DEFAULT 0,
+  flags TEXT[] DEFAULT '{}',
+  requires_human_review BOOLEAN DEFAULT FALSE,
+  reviewed_by UUID REFERENCES public.users(id),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(photo_id)
+);
+CREATE INDEX IF NOT EXISTS idx_moderation_status ON public.photo_moderation(status);
+CREATE INDEX IF NOT EXISTS idx_moderation_review ON public.photo_moderation(requires_human_review, reviewed_at);
+ALTER TABLE public.photo_moderation ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users see own moderation" ON public.photo_moderation;
+CREATE POLICY "Users see own moderation" ON public.photo_moderation
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- push_tokens (schema.sql:273) — not hardened here, but Edge Functions read it;
+-- create if absent so notification plumbing has a table.
+CREATE TABLE IF NOT EXISTS public.push_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, token)
+);
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users manage own tokens" ON public.push_tokens;
+CREATE POLICY "Users manage own tokens" ON public.push_tokens
+  FOR ALL USING (auth.uid() = user_id);
 
 
 -- ============================================================================
