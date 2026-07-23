@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
+import { blockUser } from '../../lib/blockList';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
 
 const REASONS = [
@@ -54,15 +55,15 @@ export default function Report() {
         style: 'destructive',
         onPress: async () => {
           if (!user || !userId) return;
-          await supabase.from('reports').insert({
-            reporter_id: user.id,
-            reported_id: userId,
-            reason: 'other',
-            details: 'User blocked',
-            status: 'actioned',
-          });
-          Alert.alert('Blocked', 'This user has been blocked.');
-          router.back();
+          // Server-enforced: the blocks table is checked by the match trigger,
+          // messages/interactions policies, and discovery (C-4).
+          const ok = await blockUser(user.id, userId);
+          if (ok) {
+            Alert.alert('Blocked', 'This user has been blocked.');
+            router.back();
+          } else {
+            Alert.alert('Error', 'Failed to block. Please try again.');
+          }
         },
       },
     ]);
