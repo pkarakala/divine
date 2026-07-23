@@ -46,6 +46,8 @@ export default function Login() {
     setLoading(false);
     if (authError) {
       setError(authError);
+    } else {
+      router.replace('/');
     }
   };
 
@@ -59,6 +61,8 @@ export default function Login() {
     setLoading(false);
     if (authError) {
       setError(authError);
+    } else {
+      router.replace('/');
     }
   };
 

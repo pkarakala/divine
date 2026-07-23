@@ -83,7 +83,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signInWithEmail: async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    console.log('[auth] signInWithEmail attempt:', email);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('[auth] signInWithEmail error:', error.message, error.status);
+    } else {
+      console.log('[auth] signInWithEmail success, user:', data.user?.id);
+      // Set session synchronously and await profile so the store is fully populated
+      // before the caller calls router.replace('/') — avoids a race with onAuthStateChange.
+      set({ session: data.session });
+      await get().fetchProfile();
+    }
     return { error: error?.message || null };
   },
 

@@ -5,6 +5,9 @@ import { secureStorage } from './secureStorage';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// TODO: remove before shipping — confirms env vars are loaded correctly
+console.log('[supabase] URL:', supabaseUrl || '(undefined — check .env)');
+
 const isServer = typeof window === 'undefined';
 
 // Web keeps localStorage; native uses the Keychain/Keystore-backed adapter
