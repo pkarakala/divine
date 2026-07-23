@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 import { useAuthStore } from '../stores/authStore';
 import { ErrorBoundary as AppErrorBoundary } from '../components/ErrorBoundary';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { initSentry, setSentryUser, wrapRoot } from '../lib/sentry';
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
@@ -21,9 +22,12 @@ import type { Subscription } from 'expo-notifications';
 
 export { ErrorBoundary } from 'expo-router';
 
+// Crash reporting first — before anything else can throw. No-op without a DSN.
+initSentry();
+
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
   const router = useRouter();
   const initialize = useAuthStore(s => s.initialize);
   const user = useAuthStore(s => s.user);
@@ -53,6 +57,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    setSentryUser(user?.id ?? null);
     if (!user) return;
 
     setAnalyticsUser(user.id);
@@ -125,3 +130,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default wrapRoot(RootLayout);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/Theme';
+import { captureError } from '../lib/sentry';
 
 interface Props {
   children: React.ReactNode;
@@ -18,6 +19,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   static getDerivedStateFromError(): State {
     return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    // Report caught render errors — the boundary showing "Try Again" would
+    // otherwise hide them from crash reporting entirely.
+    captureError(error, 'error-boundary');
   }
 
   handleRetry = () => {
