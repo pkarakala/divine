@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { rankProfiles } from '../lib/scoring';
-import { computeAndSaveUserScores } from '../lib/computeUserScores';
 import { applyActivityMultipliers } from '../lib/activityFilter';
 import { getUserPeakHours, isUserLikelyActive } from '../lib/smartTiming';
 import { prefetchProfileImages } from '../lib/imagePrefetch';
@@ -66,8 +65,11 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     const blockedIds = await getBlockedUserIds(userId);
     const excludeIds = [userId, ...(existingInteractions?.map(i => i.receiver_id) || []), ...blockedIds];
 
+    // Discovery reads go through the profiles_discovery view (no exact
+    // lat/long, paused users hidden); the profiles base table is only readable
+    // for yourself and active matches. See 0001_p0a_rls_hardening.sql (H-2).
     let query = supabase
-      .from('profiles')
+      .from('profiles_discovery')
       .select('*')
       .not('user_id', 'in', `(${excludeIds.join(',')})`)
       .limit(20);
@@ -105,8 +107,8 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       })
     );
 
-    await computeAndSaveUserScores(userId);
-
+    // Scores are persisted server-side by the recompute-scores Edge Function
+    // (user_scores is service-role-write-only now — M-5); no client write here.
     const ranked = await rankProfiles(userId, myProfile, userIds);
 
     const baseScored = ranked.map(r => ({
@@ -198,27 +200,18 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
     });
 
     if (type === 'like' || type === 'rose') {
-      const { data: reciprocal } = await supabase
-        .from('interactions')
-        .select('*')
-        .eq('sender_id', receiverId)
-        .eq('receiver_id', senderId)
-        .in('type', ['like', 'rose'])
-        .single();
+      // Matches are created server-side by a SECURITY DEFINER trigger on
+      // interactions when a reciprocal like/rose exists (clients can no longer
+      // INSERT into matches — see supabase/migrations/0001_p0a_rls_hardening.sql,
+      // finding C-2). Re-query matches to confirm the trigger created one.
+      const { data: match } = await supabase
+        .from('matches')
+        .select('id')
+        .eq('status', 'active')
+        .or(`and(user_1_id.eq.${senderId},user_2_id.eq.${receiverId}),and(user_1_id.eq.${receiverId},user_2_id.eq.${senderId})`)
+        .maybeSingle();
 
-      if (reciprocal) {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
-
-        await supabase.from('matches').insert({
-          user_1_id: senderId,
-          user_2_id: receiverId,
-          expires_at: expiresAt.toISOString(),
-          status: 'active',
-        });
-
-        return { matched: true };
-      }
+      if (match) return { matched: true };
     }
 
     return { matched: false };
