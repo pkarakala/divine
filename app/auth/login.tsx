@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../stores/authStore';
 import { Colors, FontSize, FontWeight, Spacing } from '../../constants/Theme';
-import { DEMO_CREDENTIALS } from '../../constants/demo';
+import { DEMO_CREDENTIALS, DEMO_AVAILABLE } from '../../constants/demo';
 
 export default function Login() {
   const router = useRouter();
@@ -128,12 +128,14 @@ export default function Login() {
         </View>
 
         <View style={styles.footer}>
-          <Button
-            title="Try Demo Account"
-            onPress={handleDemoLogin}
-            variant="ghost"
-            loading={loading}
-          />
+          {DEMO_AVAILABLE && (
+            <Button
+              title="Try Demo Account"
+              onPress={handleDemoLogin}
+              variant="ghost"
+              loading={loading}
+            />
+          )}
           <Button
             title="Don't have an account? Sign Up"
             onPress={() => router.push('/auth/signup')}

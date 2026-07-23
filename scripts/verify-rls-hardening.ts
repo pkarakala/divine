@@ -41,10 +41,16 @@ function report(name: string, ok: boolean, detail: string) {
 }
 
 async function main() {
-  // Demo account from constants/demo.ts (to be removed in P0-F).
+  // Demo account credentials come from .env (P0-F: never hardcoded).
+  const demoEmail = env.EXPO_PUBLIC_DEMO_EMAIL;
+  const demoPassword = env.EXPO_PUBLIC_DEMO_PASSWORD;
+  if (!demoEmail || !demoPassword) {
+    console.error('Set EXPO_PUBLIC_DEMO_EMAIL / EXPO_PUBLIC_DEMO_PASSWORD in .env');
+    process.exit(1);
+  }
   const { data: auth, error: authError } = await supabase.auth.signInWithPassword({
-    email: 'demo@divine-test.com',
-    password: 'DivineDemo2026!',
+    email: demoEmail,
+    password: demoPassword,
   });
   if (authError || !auth.user) {
     console.error('Could not sign in as demo user:', authError?.message);

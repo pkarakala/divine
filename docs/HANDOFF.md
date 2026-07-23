@@ -109,14 +109,18 @@ npx expo run:ios
 
 ## Demo Account Login
 
-Once the app is running in the simulator, you can log in immediately:
+Demo credentials are **not** committed to the repo (they were once — audit
+finding H-4 — and that password has been rotated). To enable the demo login,
+add these to your local `.env` (ask the owner for the current values):
 
-| Field | Value |
-|-------|-------|
-| **Email** | `demo@divine-test.com` |
-| **Password** | `DivineDemo2026!` |
+```
+EXPO_PUBLIC_DEMO_EMAIL=...
+EXPO_PUBLIC_DEMO_PASSWORD=...
+```
 
-**Or even easier:** On the login screen, tap **"Try Demo Account"** — it auto-fills and logs you in.
+With those set, the login screen shows a **"Try Demo Account"** button that
+auto-fills and logs you in. Without them, the button is hidden — sign up with
+your own test account instead.
 
 Once logged in, you'll see the discovery screen with real mock profiles (Maya, Jasmine, Zara) that you can swipe through, like, and interact with.
 
@@ -226,7 +230,7 @@ The demo account (Alex) is male and looking for female, so you'll see Maya, Jasm
 → Run `npm install` again, then restart with `npx expo start --ios --clear`.
 
 **Login says "Invalid credentials"**
-→ Make sure you're using email mode (tap "Email" toggle), then use `demo@divine-test.com` / `DivineDemo2026!`.
+→ Make sure you're using email mode (tap "Email" toggle) and that `EXPO_PUBLIC_DEMO_EMAIL`/`EXPO_PUBLIC_DEMO_PASSWORD` in your `.env` are current.
 
 **Xcode simulator not showing up**
 → Open Xcode > Settings > Platforms > download iOS simulator runtime.
