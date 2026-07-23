@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireWebhookSecret } from '../_shared/auth.ts';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -11,6 +12,11 @@ interface NotificationPayload {
 }
 
 serve(async (req) => {
+  // C-5: this endpoint sends pushes to ANY user with arbitrary content using
+  // the service role — only trusted server-side callers may invoke it.
+  const denied = requireWebhookSecret(req);
+  if (denied) return denied;
+
   const { userId, title, body, data } = await req.json() as NotificationPayload;
 
   const supabase = createClient(

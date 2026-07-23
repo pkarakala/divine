@@ -1,7 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireWebhookSecret } from '../_shared/auth.ts';
 
 serve(async (req) => {
+  const denied = requireWebhookSecret(req);
+  if (denied) return denied;
+
   const { record } = await req.json();
   const { id: photoId, user_id, storage_path } = record;
 
@@ -12,12 +16,17 @@ serve(async (req) => {
 
   const googleApiKey = Deno.env.get('GOOGLE_VISION_API_KEY');
 
-  let status = 'approved';
-  let confidence = 0.7;
+  // Fail closed (L-6): without an analysis provider the photo stays pending
+  // for human review instead of being auto-approved.
+  let status = 'pending';
+  let confidence = 0;
   let flags: string[] = [];
-  let requiresReview = false;
+  let requiresReview = true;
 
   if (googleApiKey) {
+    status = 'approved';
+    confidence = 0.7;
+    requiresReview = false;
     try {
       const response = await fetch(
         `https://vision.googleapis.com/v1/images:annotate?key=${googleApiKey}`,
@@ -42,6 +51,12 @@ serve(async (req) => {
         if (HIGH.includes(safeSearch.violence)) { flags.push('violence'); status = 'rejected'; }
         if (HIGH.includes(safeSearch.racy)) { flags.push('racy'); requiresReview = true; status = 'flagged'; }
         confidence = 0.9;
+      } else {
+        // API answered without an annotation — don't auto-approve blind.
+        flags.push('api_no_response');
+        status = 'flagged';
+        requiresReview = true;
+        confidence = 0.3;
       }
     } catch {
       requiresReview = true;

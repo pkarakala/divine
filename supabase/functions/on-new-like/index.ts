@@ -1,7 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireWebhookSecret } from '../_shared/auth.ts';
 
 serve(async (req) => {
+  const denied = requireWebhookSecret(req);
+  if (denied) return denied;
+
   const { record } = await req.json();
   const { sender_id, receiver_id, type } = record;
 
