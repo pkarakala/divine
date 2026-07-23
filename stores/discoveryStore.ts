@@ -190,7 +190,7 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       set({ dailyLikesRemaining: remaining - 1 });
     }
 
-    await supabase.from('interactions').insert({
+    const { error: insertError } = await supabase.from('interactions').insert({
       sender_id: senderId,
       receiver_id: receiverId,
       type,
@@ -198,6 +198,15 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
       target_id: targetId,
       comment: comment || null,
     });
+
+    if (insertError) {
+      // Server-enforced daily limits (0004_p0e_rate_limits.sql, H-3). The
+      // client-side counter is UX only; the DB trigger is the real gate.
+      if (insertError.message.includes('daily_like_limit_reached')) {
+        set({ dailyLikesRemaining: 0 });
+      }
+      return { matched: false };
+    }
 
     if (type === 'like' || type === 'rose') {
       // Matches are created server-side by a SECURITY DEFINER trigger on
