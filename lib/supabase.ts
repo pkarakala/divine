@@ -1,12 +1,14 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
+import { secureStorage } from './secureStorage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const isServer = typeof window === 'undefined';
 
+// Web keeps localStorage; native uses the Keychain/Keystore-backed adapter
+// (audit M-4: refresh tokens must not sit in plaintext AsyncStorage).
 const storage = Platform.OS === 'web'
   ? {
       getItem: (key: string) => {
@@ -20,7 +22,7 @@ const storage = Platform.OS === 'web'
         if (!isServer) window.localStorage.removeItem(key);
       },
     }
-  : AsyncStorage;
+  : secureStorage;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
