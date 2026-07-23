@@ -10,9 +10,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.divine.app",
-      "associatedDomains": [
-        "applinks:divine.app"
-      ]
+      "infoPlist": {
+        "NSCameraUsageDescription": "Divine uses your camera to take profile photos and verify your membership.",
+        "NSPhotoLibraryUsageDescription": "Divine accesses your photo library so you can choose profile photos and upload membership verification documents.",
+        "NSLocationWhenInUseUsageDescription": "Divine uses your location to show you members nearby and display approximate distance on profiles. Your exact location is never shown to other users.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.divine.app",
@@ -23,22 +26,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "divine.app",
-              "pathPrefix": "/"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
