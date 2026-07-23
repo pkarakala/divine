@@ -57,10 +57,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false });
     }
 
+    // Heartbeat: mark the user active on session start (M-3). The RPC only
+    // ever sets NOW() for the caller — last_active_at is not client-writable.
+    supabase.rpc('touch_last_active').then(() => {});
+
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         set({ session });
         await get().fetchProfile();
+        supabase.rpc('touch_last_active').then(() => {});
       } else if (event === 'SIGNED_OUT') {
         set({ user: null, profile: null, session: null, isOnboarded: false });
       }
