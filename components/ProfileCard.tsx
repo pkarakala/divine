@@ -1,10 +1,11 @@
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { DiscoveryProfile } from '../stores/discoveryStore';
 import { CachedImage } from './ui/CachedImage';
 import { OrgBadge } from './ui/OrgBadge';
 import { Card } from './ui/Card';
 import { Colors, BorderRadius, FontSize, FontWeight, Spacing } from '../constants/Theme';
-import { calculateDistance } from '../lib/location';
+import { supabase } from '../lib/supabase';
 import type { Profile } from '../types/database';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -53,9 +54,30 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile,
 
   const activity = getActivityStatus(last_active_at);
 
-  const distance = viewerLocation && userData.latitude && userData.longitude
-    ? calculateDistance(viewerLocation.latitude, viewerLocation.longitude, userData.latitude, userData.longitude)
-    : null;
+  // Exact coordinates are no longer client-readable (RLS hardening, H-2).
+  // The distance_bucket RPC computes distance server-side from the target's
+  // stored location and returns only a coarse bucket like "5-10 miles".
+  const [distanceBucket, setDistanceBucket] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!viewerLocation) {
+      setDistanceBucket(null);
+      return;
+    }
+    supabase
+      .rpc('distance_bucket', {
+        target_user_id: userData.user_id,
+        viewer_lat: viewerLocation.latitude,
+        viewer_lng: viewerLocation.longitude,
+      })
+      .then(({ data }) => {
+        if (!cancelled) setDistanceBucket(typeof data === 'string' ? data : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userData.user_id, viewerLocation?.latitude, viewerLocation?.longitude]);
 
   const compatibility = viewerProfile
     ? calculateCompatibility(viewerProfile, userData, photos, prompts)
@@ -83,8 +105,8 @@ export function ProfileCard({ profile, onLikePhoto, onLikePrompt, viewerProfile,
               {userData.city && (
                 <Text style={styles.location}>{userData.city}, {userData.state}</Text>
               )}
-              {distance !== null && (
-                <Text style={styles.distance}>{distance} {distance === 1 ? 'mile' : 'miles'} away</Text>
+              {distanceBucket !== null && (
+                <Text style={styles.distance}>{distanceBucket} away</Text>
               )}
               {activity && (
                 <View style={styles.activityRow}>
