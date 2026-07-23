@@ -52,6 +52,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c9122516-4416-4ed3-83ea-151b3e224945"
+      }
+    },
+    "owner": "pkarakala1"
   }
 }
