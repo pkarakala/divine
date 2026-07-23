@@ -201,25 +201,27 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Card>
 
-        <Card style={styles.settingsCard}>
-          <Text style={styles.sectionTitle}>Dev Tools</Text>
-          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/experiments' as any)}>
-            <Text style={styles.settingLabel}>Experiments</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingRow} onPress={() => {
-            seedDatabase().then(() => Alert.alert('Done', 'Mock data seeded!'));
-          }}>
-            <Text style={styles.settingLabel}>Seed Mock Data</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingRow} onPress={() => {
-            clearSeedData().then(() => Alert.alert('Done', 'Seed data cleared!'));
-          }}>
-            <Text style={[styles.settingLabel, { color: Colors.error }]}>Clear Seed Data</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-        </Card>
+        {__DEV__ && (
+          <Card style={styles.settingsCard}>
+            <Text style={styles.sectionTitle}>Dev Tools</Text>
+            <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/settings/experiments' as any)}>
+              <Text style={styles.settingLabel}>Experiments</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingRow} onPress={() => {
+              seedDatabase().then(() => Alert.alert('Done', 'Mock data seeded!'));
+            }}>
+              <Text style={styles.settingLabel}>Seed Mock Data</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingRow} onPress={() => {
+              clearSeedData().then(() => Alert.alert('Done', 'Seed data cleared!'));
+            }}>
+              <Text style={[styles.settingLabel, { color: Colors.error }]}>Clear Seed Data</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+          </Card>
+        )}
 
         <Button
           title="Sign Out"
