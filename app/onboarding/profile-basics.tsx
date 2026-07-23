@@ -21,7 +21,25 @@ export default function ProfileBasics() {
   const [gender, setGender] = useState<Gender | null>(null);
   const [lookingFor, setLookingFor] = useState<LookingFor | null>(null);
 
-  const isValid = name.length >= 2 && chapterName.length >= 2 && gender !== null && lookingFor !== null;
+  // 18+ age gate (App Store requirement for dating apps). The server enforces
+  // this too (migration 0008); this is the UX layer.
+  const parseDob = (value: string): Date | null => {
+    const m = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    const [, mm, dd, yyyy] = m;
+    const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+    if (isNaN(d.getTime()) || d.getMonth() + 1 !== parseInt(mm) || d.getDate() !== parseInt(dd)) return null;
+    return d;
+  };
+  const dob = parseDob(dateOfBirth);
+  const age = dob ? Math.floor((Date.now() - dob.getTime()) / 31557600000) : null;
+  const dobEntered = dateOfBirth.length === 10;
+  const dobValid = dob !== null && age !== null && age >= 18 && age <= 100;
+  const dobError = dobEntered && !dobValid
+    ? (dob && age !== null && age < 18 ? 'You must be at least 18 to use Divine.' : 'Enter a valid date (MM/DD/YYYY).')
+    : undefined;
+
+  const isValid = name.length >= 2 && chapterName.length >= 2 && gender !== null && lookingFor !== null && dobValid;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -44,6 +62,8 @@ export default function ProfileBasics() {
           label="Date of Birth"
           placeholder="MM/DD/YYYY"
           keyboardType="number-pad"
+          maxLength={10}
+          error={dobError}
         />
 
         <View style={styles.selectorSection}>

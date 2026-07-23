@@ -10,6 +10,13 @@ import { moderatePhoto } from '../../lib/photoModeration';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
 import type { Organization } from '../../types/database';
 
+/** "MM/DD/YYYY" -> "YYYY-MM-DD" (null if malformed). DOB was validated 18+ in
+ * profile-basics; the DB trigger (migration 0008) enforces it regardless. */
+function parseDobToISO(value: string | undefined): string | null {
+  const m = (value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : null;
+}
+
 export default function Verification() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -49,6 +56,7 @@ export default function Verification() {
       const { error: profileError } = await supabase.from('profiles').upsert({
         user_id: userId,
         display_name: params.name as string,
+        date_of_birth: parseDobToISO(params.dateOfBirth as string),
         organization: params.org as Organization,
         chapter_name: params.chapterName as string,
         line_name: (params.lineName as string) || null,
