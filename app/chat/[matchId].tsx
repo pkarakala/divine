@@ -7,7 +7,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { useMatchStore, MatchWithProfile } from '../../stores/matchStore';
 import { supabase } from '../../lib/supabase';
 import { getDraftMessage, saveDraftMessage } from '../../lib/statePersistence';
-import { publishPublicKey, decryptReceivedMessage } from '../../lib/encryptedChat';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../../constants/Theme';
 import { ORGANIZATIONS } from '../../types/database';
 import type { Message, Organization } from '../../types/database';
@@ -25,13 +24,11 @@ export default function Chat() {
   const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [matchData, setMatchData] = useState<MatchWithProfile | null>(null);
-  const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<any>(null);
   const isTrackingTyping = useRef(false);
-  const publicKeyPublished = useRef(false);
 
   // Typing indicator animation
   const dot1 = useRef(new Animated.Value(0)).current;
@@ -56,30 +53,6 @@ export default function Chat() {
     a3.start();
     return () => { a1.stop(); a2.stop(); a3.stop(); };
   }, [otherUserTyping]);
-
-  useEffect(() => {
-    if (!user || publicKeyPublished.current) return;
-    publicKeyPublished.current = true;
-    publishPublicKey(user.id);
-  }, [user]);
-
-  useEffect(() => {
-    if (!user || currentChat.length === 0) return;
-    currentChat.forEach(async (msg) => {
-      if (decryptedMessages[msg.id]) return;
-      if (!msg.content.startsWith('{')) return;
-      try {
-        const parsed = JSON.parse(msg.content);
-        if (!parsed.e) return;
-      } catch { return; }
-      const otherUserId = msg.sender_id === user.id
-        ? matchData?.other_user.profile.user_id
-        : msg.sender_id;
-      if (!otherUserId) return;
-      const decrypted = await decryptReceivedMessage(msg.content, otherUserId);
-      setDecryptedMessages(prev => ({ ...prev, [msg.id]: decrypted }));
-    });
-  }, [currentChat, user, matchData]);
 
   useEffect(() => {
     if (!matchId) return;
@@ -325,12 +298,6 @@ export default function Chat() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.sender_id === user?.id;
-    let isEncrypted = false;
-    try {
-      const parsed = JSON.parse(item.content);
-      isEncrypted = !!parsed.e;
-    } catch {}
-    const displayContent = decryptedMessages[item.id] || item.content;
 
     if (item.type === 'image' && item.media_url) {
       return (
@@ -342,7 +309,6 @@ export default function Chat() {
               resizeMode="cover"
             />
             <View style={styles.timeRow}>
-              {isEncrypted && <Text style={[styles.lockIcon, isMe && styles.myMessageTime]}>{'lock '}</Text>}
               <Text style={[styles.messageTime, isMe && styles.myMessageTime]}>
                 {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
               </Text>
@@ -357,12 +323,11 @@ export default function Chat() {
 
     return (
       <View>
-        <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]} accessibilityLabel={`${isMe ? 'You' : matchInfo?.name || 'They'} said: ${displayContent}`}>
+        <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]} accessibilityLabel={`${isMe ? 'You' : matchInfo?.name || 'They'} said: ${item.content}`}>
           <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-            {displayContent}
+            {item.content}
           </Text>
           <View style={styles.timeRow}>
-            {isEncrypted && <Text style={[styles.lockIcon, isMe && styles.myMessageTime]}>{'lock '}</Text>}
             <Text style={[styles.messageTime, isMe && styles.myMessageTime]}>
               {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
             </Text>
@@ -615,10 +580,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
-  },
-  lockIcon: {
-    fontSize: FontSize.xs,
-    color: Colors.text.light,
   },
   messageTime: {
     fontSize: FontSize.xs,
